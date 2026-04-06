@@ -31,6 +31,8 @@ Commands:
   build-analytics-insights Output performance insights from analytics for prompt injection
   build-analytics-summary Show performance trends and analytics summary
   build-config-summary  Build config context summary for prompt injection
+  build-title-variations Generate scored title variations from research data
+  build-hook-variations  Generate scored opening hook variations
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
   show-progress         Show rich pipeline progress visualization
@@ -927,6 +929,16 @@ cmd_build_seo_metadata() {
   bash "$SKILL_DIR/scripts/seo-metadata.sh" "$PROJECT_DIR" "$verbose"
 }
 
+cmd_build_title_variations() {
+  local count="${1:-10}"
+  bash "$SKILL_DIR/scripts/title-generator.sh" "$PROJECT_DIR" "$count"
+}
+
+cmd_build_hook_variations() {
+  local style="${1:-all}"
+  bash "$SKILL_DIR/scripts/hook-workshop.sh" "$PROJECT_DIR" "$style"
+}
+
 cmd_build_code_validation() {
   local draft_path
   draft_path=$(latest_draft)
@@ -1377,6 +1389,8 @@ case "$CMD" in
   build-calibration-summary) cmd_build_calibration_summary ;;
   build-influence-score) cmd_build_influence_score "$@" ;;
   build-seo-metadata) cmd_build_seo_metadata "$@" ;;
+  build-title-variations) cmd_build_title_variations "$@" ;;
+  build-hook-variations) cmd_build_hook_variations "$@" ;;
   build-code-validation) cmd_build_code_validation "$@" ;;
   build-diagram-suggestions) cmd_build_diagram_suggestions "$@" ;;
   build-readability-report) cmd_build_readability_report "$@" ;;

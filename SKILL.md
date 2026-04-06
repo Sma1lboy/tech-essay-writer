@@ -99,8 +99,26 @@ For URLs that need fetching, use WebFetch, then update the material with key_poi
 
 **Series support:** If the user wants this article as part of a series, associate it:
 ```bash
+# List existing series
 bash "$SKILL_DIR/scripts/series-manager.sh" list
+
+# Create a new series if needed
+bash "$SKILL_DIR/scripts/series-manager.sh" create "<series_name>" "<description>"
+
+# Show details of a specific series
+bash "$SKILL_DIR/scripts/series-manager.sh" show "<series_id>"
+
+# Search series by keyword
+bash "$SKILL_DIR/scripts/series-manager.sh" search "<query>"
+
+# Associate current article with a series
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" series_id "<series_id>"
+
+# Add the article to the series reading order
+bash "$SKILL_DIR/scripts/series-manager.sh" add "<series_id>" "<article_id>" "<title>"
+
+# Set the narrative arc for the series
+bash "$SKILL_DIR/scripts/series-manager.sh" set-arc "<series_id>" "<arc_description>"
 ```
 Series context is then auto-injected into outline, writer, and formatter prompts.
 
@@ -227,17 +245,25 @@ bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" draft_versi
 
 #### Draft Quality Checks
 
-Before advancing to review, validate code and suggest diagrams:
+Before advancing to review, validate code, analyze readability, check word frequency, and suggest diagrams:
 
 ```bash
 # Validate code examples in the draft (syntax, imports, fragments)
 bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-code-validation
+
+# Readability analysis: Flesch-Kincaid grade, sentence/word metrics, passive voice, complexity
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-readability-report verbose
+
+# Word frequency: overused words, jargon density, AI-generated text pattern detection
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-word-analysis 25
 
 # Suggest diagrams/images with Mermaid syntax
 bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-diagram-suggestions
 ```
 
 If code validation finds issues, fix them in the draft before proceeding.
+If readability is too high (grade > 14) or passive voice is excessive (> 20%), consider simplifying.
+If AI pattern detection flags high risk, revise the draft to reduce AI-sounding language.
 If diagram suggestions are compelling, note them for the refinement stage.
 
 ```bash
@@ -306,7 +332,13 @@ REFINER_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL
 Agent(description="Refinement round N", prompt=REFINER_PROMPT)
 ```
 
-3. After refinement, re-run ONLY the adversarial reviewer on the new draft:
+3. After refinement, compare the new draft against the previous version:
+```bash
+# Compare draft versions to see what changed (structure, reading level, word count)
+bash "$SKILL_DIR/scripts/article-compare.sh" "$PROJECT_DIR/.essay-state/draft-v1.md" "$PROJECT_DIR/.essay-state/draft-v2.md" --json
+```
+
+4. Re-run ONLY the adversarial reviewer on the new draft:
 ```bash
 PROMPT_ADV=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts adversarial)
 ```
@@ -314,7 +346,7 @@ PROMPT_ADV=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR
 Agent(description="Adversarial re-review", prompt=PROMPT_ADV)
 ```
 
-4. Check convergence:
+5. Check convergence:
 ```bash
 RESULT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" check-convergence $ROUND)
 ```
@@ -483,6 +515,20 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-analy
 ```
 Analytics insights are auto-injected into writer and reviewer prompts via `build-analytics-insights`.
 
+## Dry-Run Mode
+
+Simulate the complete pipeline without LLM agents — useful for testing infrastructure
+changes without burning API tokens:
+
+```bash
+bash "$SKILL_DIR/scripts/dry-run.sh" "$PROJECT_DIR" "$SKILL_DIR"
+```
+
+The dry-run creates mock data at each stage, exercises every script (pipeline-state,
+intake, orchestrate prompt builders, reviews, aggregate, calibrate, quality-score,
+formatting, social package, etc.), and reports pass/fail per checkpoint. Use this to
+validate that script changes haven't broken the pipeline infrastructure.
+
 ## Series Support
 
 For multi-article series:
@@ -490,8 +536,33 @@ For multi-article series:
 # Create a new series
 bash "$SKILL_DIR/scripts/series-manager.sh" create "<series_name>" "<description>"
 
+# List all series
+bash "$SKILL_DIR/scripts/series-manager.sh" list
+
+# Show series details
+bash "$SKILL_DIR/scripts/series-manager.sh" show "<series_id>"
+
 # Add current article to a series
+bash "$SKILL_DIR/scripts/series-manager.sh" add "<series_id>" "<article_id>" "<title>"
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" series_id "<series_id>"
+
+# Set the narrative arc
+bash "$SKILL_DIR/scripts/series-manager.sh" set-arc "<series_id>" "<arc_description>"
+
+# Set article summary within series
+bash "$SKILL_DIR/scripts/series-manager.sh" set-summary "<series_id>" "<article_id>" "<summary>"
+
+# Get next position in the series
+bash "$SKILL_DIR/scripts/series-manager.sh" next-position "<series_id>"
+
+# Reorder an article within the series
+bash "$SKILL_DIR/scripts/series-manager.sh" reorder "<series_id>" "<article_id>" "<new_position>"
+
+# Search series by keyword
+bash "$SKILL_DIR/scripts/series-manager.sh" search "<query>"
+
+# Get series context JSON for prompt injection
+bash "$SKILL_DIR/scripts/series-manager.sh" context "<series_id>"
 
 # Series context is auto-injected into outline, writer, and formatter prompts
 ```
@@ -516,6 +587,46 @@ STAGE=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" res
 bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 The `resume` command detects the current pipeline state, reports the stage and what's completed, and tells you what to do next. Show progress, then jump to that stage's execution block above.
+
+## Orchestrate.sh Command Reference
+
+All orchestrate.sh commands follow the pattern:
+```bash
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" <command> [args...]
+```
+
+| Command | Description |
+|---------|-------------|
+| `status` | Show current pipeline status (stage, topic, draft version, review count) |
+| `next-stage` | Determine and output the next stage to execute |
+| `build-intake-summary` | Build intake summary for user checkpoint |
+| `build-research-prompt` | Build research agent prompt with materials + taste memory |
+| `build-outline-prompts <A\|B\|C>` | Build outline agent prompt for a specific variant |
+| `build-outline-critique-prompt` | Build outline adversarial critique prompt |
+| `build-writer-prompt [variant]` | Build writer agent prompt with chosen outline |
+| `build-review-prompts <reviewer>` | Build review prompt (technical/editor/adversarial/audience/seo/external/factcheck) |
+| `build-refiner-prompt <round>` | Build refiner agent prompt with round number |
+| `build-format-prompts <format>` | Build formatter prompt (internal/external/medium/devto/hashnode/wechat/juejin) |
+| `build-social-prompt` | Build social media package agent prompt |
+| `build-calibration-summary` | Build human-readable calibration summary |
+| `build-influence-score [verbose]` | Compute influence/reach score from state data |
+| `build-seo-metadata [verbose]` | Generate SEO metadata (OpenGraph, meta tags, JSON-LD) |
+| `build-code-validation` | Validate code examples in the latest draft |
+| `build-diagram-suggestions [verbose]` | Suggest diagrams/images with Mermaid syntax |
+| `build-readability-report [verbose]` | Compute readability metrics (FK grade, passive voice, complexity) |
+| `build-word-analysis [top_n]` | Word frequency, overuse detection, jargon density, AI pattern detection |
+| `build-series-context` | Build series context for prompt injection |
+| `build-analytics-insights` | Output performance insights from analytics for prompt injection |
+| `build-analytics-summary` | Show performance trends and analytics summary |
+| `build-config-summary` | Build config context summary for prompt injection |
+| `list-platforms` | List all available platform format names |
+| `check-convergence <round>` | Check if refinement loop should continue (CONVERGED/CONTINUE/MAX_ROUNDS) |
+| `show-progress` | Show rich pipeline progress visualization |
+| `publishing-guide <platform>` | Show per-platform publishing workflow guide |
+| `list-checkpoints` | List all saved state checkpoints |
+| `rollback <id>` | Restore state from a checkpoint |
+| `retry-stage <stage>` | Reset and retry a failed stage |
+| `resume` | Detect partial state and advise next action |
 
 ## Error Handling
 

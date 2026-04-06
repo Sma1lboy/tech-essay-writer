@@ -31,7 +31,9 @@ user makes the final choice.
 
 ### Stage 4: DRAFT WRITING
 A writer agent produces a complete draft from the chosen outline. Code examples
-are validated (syntax, imports, fragments) and diagram placement is suggested.
+are validated (syntax, imports, fragments), readability is scored (Flesch-Kincaid
+grade, passive voice, complexity), word frequency is analyzed (overuse, jargon
+density, AI pattern detection), and diagram placement is suggested.
 
 ### Stage 5: ADVERSARIAL REVIEW PANEL (7 Parallel Agents)
 Seven independent reviewers run in parallel with fresh context (no knowledge of
@@ -39,8 +41,9 @@ each other). Results are aggregated, scored (composite 0-10), and calibrated for
 outliers and blind spots.
 
 ### Stage 6: REFINEMENT LOOP (Max 3 Rounds)
-A refiner agent addresses issues from the review panel. After each round, the
-adversarial reviewer re-checks. The loop exits on convergence or max rounds.
+A refiner agent addresses issues from the review panel. After each round, drafts
+are compared via article-compare.sh and the adversarial reviewer re-checks. The
+loop exits on convergence or max rounds.
 
 ### Stage 7: DUAL-FORMAT POLISH
 Two format agents run in parallel (internal company version + external blog
@@ -50,7 +53,8 @@ the author's profile for Twitter threads, LinkedIn posts, and more.
 
 Post-polish analysis computes an influence/reach score and generates SEO metadata
 (OpenGraph, meta tags, JSON-LD, keyword density). A publish readiness checklist
-validates the article before publishing.
+validates the article before publishing. Analytics feedback feeds performance
+data back into taste memory for future articles.
 
 ## Multi-Agent Adversarial Review (7 Reviewers)
 
@@ -68,32 +72,36 @@ After aggregation, `calibrate-reviews.sh` normalizes scores to 1-10, detects
 outliers (>1.5 std dev from panel average), identifies blind spots (topics no
 reviewer covered), and measures inter-reviewer agreement.
 
-## Script Inventory (25 scripts)
+## Script Inventory (29 scripts)
 
 | Script | Description |
 |--------|-------------|
-| `orchestrate.sh` | Pipeline orchestrator -- prompt builders, stage control, resume, checkpoint management |
-| `pipeline-state.sh` | Pipeline state CRUD with atomic writes (init, set-stage, set-field, add-review, etc.) |
-| `intake-materials.sh` | Material intake: add-url, add-note, add-file, add-code, add-theme, add-angle |
+| `orchestrate.sh` | Pipeline orchestrator -- 27 commands for prompt building, stage control, resume, checkpoint management, readability, word analysis |
+| `pipeline-state.sh` | Pipeline state CRUD with atomic writes (init, set-stage, get-stage, read, set-field, get-field, add-review, refinement-round, complete) |
+| `intake-materials.sh` | Material intake: add-url, add-note, add-file, add-code, add-theme, add-angle, list, export, clear |
 | `detect-input.sh` | Classify user input text into URLs, code blocks, file paths, notes, themes |
 | `aggregate-reviews.sh` | Aggregate 7 review JSON files into panel summary with consensus determination |
 | `calibrate-reviews.sh` | Post-aggregate calibration: normalize scores, detect outliers and blind spots |
-| `taste-memory.sh` | Persistent writing style preferences (read/update/record-choice/diff-learn/feedback/suggest) |
-| `cross-reference.sh` | Published article registry for internal linking (add/search/suggest/remove) |
-| `config.sh` | User configuration management (platforms, style, language, max rounds, audiences) |
-| `author-profile.sh` | Author identity management (name, bio, role, social handles, expertise, voice) |
-| `expertise-graph.sh` | Topic authority tracking with recency-weighted scoring |
+| `quality-score.sh` | Composite 0-10 quality score from weighted review dimensions |
+| `taste-memory.sh` | Persistent writing style preferences (read/update/record-choice/get-preference/history/diff-learn/feedback/suggest) |
+| `cross-reference.sh` | Published article registry for internal linking (add/search/list/suggest/remove) |
+| `config.sh` | User configuration management (init/read/get/set/add-platform/remove-platform/add-audience/remove-audience/reset/export) |
+| `author-profile.sh` | Author identity management (init/read/set/set-social/add-expertise/remove-expertise/set-voice/get-bio/get-social-handles) |
+| `expertise-graph.sh` | Topic authority tracking with recency-weighted scoring (update/query/top/suggest/read) |
 | `influence-score.sh` | Influence potential predictor (novelty, SEO, social, audience, timing) |
 | `seo-metadata.sh` | SEO metadata generator (OpenGraph, meta tags, JSON-LD, keyword density) |
 | `code-validate.sh` | Code example validator (syntax checking, import verification, fragment detection) |
 | `diagram-suggest.sh` | Diagram/image suggestion engine with Mermaid syntax output (bilingual) |
-| `series-manager.sh` | Article series manager (create, add, reorder, narrative arc, reading order) |
-| `analytics-feedback.sh` | Analytics feedback loop (record metrics, track trends, feed insights to taste memory) |
+| `readability-score.sh` | Readability analysis: Flesch-Kincaid grade, reading ease, sentence metrics, passive voice, complex sentences |
+| `word-frequency.sh` | Word frequency analysis: top-N frequencies, overused words, jargon density, AI-generated text pattern detection |
+| `article-compare.sh` | Side-by-side draft comparison: word count diff, structure diff, reading level diff, section changes, improvements/regressions |
+| `series-manager.sh` | Article series manager (create/add/list/show/context/set-arc/set-summary/next-position/search/reorder) |
+| `analytics-feedback.sh` | Analytics feedback loop (record/record-batch/query/top/trends/feed-taste/summary/compare) |
 | `progress-display.sh` | Rich pipeline progress visualization (stage map, %, quality dashboard, artifacts) |
 | `publish-check.sh` | Pre-publish checklist (validates article readiness across multiple dimensions) |
-| `publishing-guide.sh` | Per-platform publishing workflow guides with SEO tips |
-| `quality-score.sh` | Composite 0-10 quality score from weighted review dimensions |
-| `checkpoint.sh` | State checkpoint and recovery (snapshot/rollback/latest/clean) |
+| `publishing-guide.sh` | Per-platform publishing workflow guides with SEO tips (internal/external/medium/devto/hashnode/wechat/juejin/all) |
+| `checkpoint.sh` | State checkpoint and recovery (snapshot/list/rollback/latest/clean) |
+| `dry-run.sh` | Full pipeline simulation with mock data -- validates infrastructure without LLM agents |
 | `install.sh` | Skill installer/uninstaller (symlink components into ~/.claude/skills/) |
 | `fetch-urls.sh` | URL content fetcher for materials intake |
 | `update-material.sh` | Update a specific material source with fetched content and key points |
@@ -138,6 +146,36 @@ reviewer covered), and measures inter-reviewer agreement.
 | `release-announcement.md` | Release notes / launch announcement with migration guide |
 | `adr.md` | Architecture Decision Record with context, options, decision |
 
+## Test Inventory (18 suites, 1528 tests)
+
+| Suite | Tests | Coverage |
+|-------|-------|----------|
+| `test_pipeline.sh` | 66 | Core scripts: pipeline-state, intake, taste-memory, aggregate, calibrate |
+| `test_orchestrate.sh` | 85 | Orchestrator: prompt building, stage transitions, resume |
+| `test_e2e_dryrun.sh` | 83 | Full pipeline simulation with mock data |
+| `test_e2e_integration.sh` | 86 | End-to-end integration tests |
+| `test_error_handling.sh` | 116 | Error handling and edge cases |
+| `test_branding.sh` | 73 | Personal branding: author-profile, expertise-graph, social-package |
+| `test_influence_seo.sh` | 54 | Influence score + SEO metadata |
+| `test_templates_codevalidate.sh` | 150 | Template loading + code validation |
+| `test_diagram_suggest.sh` | 97 | Diagram suggestion engine |
+| `test_series_analytics.sh` | 79 | Series manager + analytics feedback |
+| `test_config.sh` | 97 | Configuration system |
+| `test_progress_display.sh` | 39 | Progress display visualization |
+| `test_progress_publishing.sh` | 192 | Progress display + publishing guides |
+| `test_checkpoint.sh` | 113 | Checkpoint, auto-snapshot, retry-stage, resume |
+| `test_install.sh` | 35 | Install/uninstall idempotency and edge cases |
+| `test_taste_memory.sh` | 65 | Taste memory: diff-learn, feedback, and suggest |
+| `test_readability.sh` | 51 | Readability scoring + word frequency analysis |
+| `test_article_compare.sh` | 47 | Article draft comparison |
+
+Run all tests:
+```bash
+bash tests/run-all.sh                    # All 1528 tests
+bash tests/run-all.sh --filter readab    # Filter by pattern
+bash tests/run-all.sh --verbose --timing # Show all output + timing
+```
+
 ## State Management
 
 ### Pipeline State (`.essay-state/`)
@@ -181,13 +219,13 @@ Persists across sessions and projects:
 
 | File | Purpose |
 |------|---------|
-| `taste-memory.json` | Writing style preferences, learned patterns (from diff-learn), explicit preferences (from feedback) |
+| `taste-memory.json` | Writing style preferences, learned patterns (from diff-learn), explicit preferences (from feedback), performance insights |
 | `config.json` | User configuration (platforms, language, style, max refinement rounds, audiences) |
 | `author-profile.json` | Author identity, bio, social handles, expertise areas, writing voice |
 | `expertise-graph.json` | Topic authority graph with recency-weighted scoring |
 | `published-articles.json` | Published article registry for cross-referencing |
 | `series.json` | Article series definitions (reading order, narrative arc, shared context) |
-| `analytics.json` | Article performance metrics (views, shares, comments, etc.) |
+| `analytics.json` | Article performance metrics (views, shares, comments, bookmarks, read_time_avg, bounce_rate) |
 
 ## Configuration System
 
@@ -198,8 +236,12 @@ bash scripts/config.sh init                        # Create default config
 bash scripts/config.sh set language zh             # Set language preference (en|zh)
 bash scripts/config.sh set writing_style narrative # Set style (technical|conversational|narrative|formal|casual|academic)
 bash scripts/config.sh add-platform medium         # Add default platform
+bash scripts/config.sh remove-platform medium      # Remove a platform
+bash scripts/config.sh add-audience "senior devs"  # Add target audience
 bash scripts/config.sh set max_refinement_rounds 5 # Set max refinement rounds (1-10)
 bash scripts/config.sh read                        # Show current config
+bash scripts/config.sh export                      # Output full JSON
+bash scripts/config.sh reset                       # Reset to defaults
 ```
 
 Config keys: `default_platforms`, `writing_style`, `target_audiences`, `language`,
@@ -219,33 +261,6 @@ pointing to `SKILL.md`, `scripts/`, `prompts/`, and `templates/` in the source
 repo. Running install twice is safe (idempotent). Old whole-directory symlinks
 from prior install methods are automatically replaced.
 
-## Testing
-
-```bash
-bash tests/run-all.sh  # 1430 tests across 16 suites
-```
-
-### Test Suites
-
-| Suite | Coverage |
-|-------|----------|
-| `test_pipeline.sh` | Core scripts: pipeline-state, intake, taste-memory, aggregate, calibrate |
-| `test_orchestrate.sh` | Orchestrator: prompt building, stage transitions, resume |
-| `test_e2e_dryrun.sh` | Full pipeline simulation with mock data |
-| `test_e2e_integration.sh` | End-to-end integration tests |
-| `test_error_handling.sh` | Error handling and edge cases |
-| `test_branding.sh` | Personal branding: author-profile, expertise-graph, social-package |
-| `test_influence_seo.sh` | Influence score + SEO metadata |
-| `test_templates_codevalidate.sh` | Template loading + code validation |
-| `test_diagram_suggest.sh` | Diagram suggestion engine |
-| `test_series_analytics.sh` | Series manager + analytics feedback |
-| `test_config.sh` | Configuration system |
-| `test_progress_display.sh` | Progress display visualization |
-| `test_progress_publishing.sh` | Progress display + publishing guides |
-| `test_checkpoint.sh` | Checkpoint, auto-snapshot, retry-stage, resume |
-| `test_install.sh` | Install/uninstall idempotency and edge cases |
-| `test_taste_memory.sh` | Taste memory: diff-learn, feedback, and suggest |
-
 ## Conventions
 
 - All state writes are atomic (tmp + rename)
@@ -261,3 +276,6 @@ bash tests/run-all.sh  # 1430 tests across 16 suites
 - Analytics `feed-taste` writes `performance_insights` into taste-memory.json
 - Pipeline state accepts `--series <series_id>` at init to associate articles with a series
 - Language directive (en/zh) propagates to all downstream agents
+- `readability-score.sh` and `word-frequency.sh` run during draft analysis before review
+- `article-compare.sh` runs during refinement to track improvements between draft versions
+- `dry-run.sh` validates the full pipeline without LLM agents (useful after script changes)
