@@ -25,6 +25,8 @@ Commands:
   build-seo-metadata    Generate SEO metadata from article + state data (no agent needed)
   build-code-validation Validate code examples in the latest draft
   build-diagram-suggestions Suggest diagrams/images for the latest draft
+  build-series-context  Build series context for injection into writer/formatter prompts
+  build-analytics-summary Show performance trends and analytics summary
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
 EOF
@@ -811,6 +813,117 @@ cmd_build_diagram_suggestions() {
     return 1
   fi
   bash "$SKILL_DIR/scripts/diagram-suggest.sh" "$draft_path" "$verbose"
+}
+
+cmd_build_series_context() {
+  # Build series context to inject into writer/formatter prompts
+  # If the current article belongs to a series, provide reading order, arc, and prior synopses
+  local series_file="$HOME/.tech-essay-writer/article-series.json"
+  local xref_file="$HOME/.tech-essay-writer/published-articles.json"
+
+  if [ ! -f "$series_file" ]; then
+    echo "(no series data available)"
+    return
+  fi
+
+  # Get current article topic from pipeline state
+  local topic=""
+  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
+    topic=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('topic',''))" 2>/dev/null || echo "")
+  fi
+
+  python3 -c "
+import json, sys, os
+
+series_file = sys.argv[1]
+xref_file = sys.argv[2]
+topic = sys.argv[3]
+
+if not os.path.exists(series_file):
+    print('(no series data available)')
+    sys.exit(0)
+
+with open(series_file) as f:
+    d = json.load(f)
+
+if not d.get('series'):
+    print('(no series defined)')
+    sys.exit(0)
+
+# Load published articles for title resolution
+articles_by_id = {}
+if os.path.exists(xref_file):
+    with open(xref_file) as f:
+        xref = json.load(f)
+    for a in xref.get('articles', []):
+        articles_by_id[a['id']] = a
+
+# Find series matching current topic
+topic_lower = topic.lower()
+topic_words = set(topic_lower.split())
+matched = []
+
+for s in d['series']:
+    score = 0
+    title_words = set(s['title'].lower().split())
+    score += len(topic_words & title_words) * 2
+    for tag in s.get('tags', []):
+        if tag.lower() in topic_lower:
+            score += 3
+    theme = s.get('narrative_arc', {}).get('theme', '').lower()
+    if theme and any(w in theme for w in topic_words):
+        score += 2
+    # Check if any article in the series matches
+    for a in s.get('articles', []):
+        syn = a.get('synopsis', '').lower()
+        if any(w in syn for w in topic_words):
+            score += 1
+    if score > 0:
+        matched.append((score, s))
+
+matched.sort(key=lambda x: -x[0])
+
+if not matched:
+    print('(no matching series for this topic)')
+    sys.exit(0)
+
+print('## Series Context')
+print()
+
+for _, s in matched[:2]:
+    print(f'### Series: {s[\"title\"]}')
+    print(f'Description: {s.get(\"description\", \"\")}')
+    print(f'Status: {s.get(\"status\", \"?\")}')
+    arc = s.get('narrative_arc', {})
+    print(f'Arc type: {arc.get(\"type\", \"?\")}')
+    if arc.get('theme'):
+        print(f'Theme: {arc[\"theme\"]}')
+    if arc.get('progression'):
+        print(f'Progression: {arc[\"progression\"]}')
+    print()
+
+    articles = sorted(s.get('articles', []), key=lambda a: a.get('order', 0))
+    if articles:
+        print('Reading order:')
+        for a in articles:
+            title = articles_by_id.get(a['article_id'], {}).get('title', a['article_id'])
+            url = articles_by_id.get(a['article_id'], {}).get('url', '')
+            print(f'  {a[\"order\"]}. {title} ({a.get(\"role\", \"?\")})')
+            if a.get('synopsis'):
+                print(f'     Synopsis: {a[\"synopsis\"]}')
+            if url:
+                print(f'     URL: {url}')
+        print()
+        print('**Writing guidance**: This article should build on the prior entries above.')
+        print(f'Consider the {arc.get(\"type\", \"progressive\")} arc when structuring transitions.')
+        print(f'Reference prior articles where relevant for continuity.')
+    print()
+" "$series_file" "$xref_file" "$topic"
+}
+
+cmd_build_analytics_summary() {
+  # Show performance trends and analytics insights for context injection
+  bash "$SKILL_DIR/scripts/analytics-feedback.sh" trends 2>/dev/null || echo '(no analytics data available)'
 }
 
 cmd_check_convergence() {

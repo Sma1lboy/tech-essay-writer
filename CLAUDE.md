@@ -116,5 +116,5 @@ During execution, `.essay-state/` contains:
 ## Testing
 
 ```bash
-bash tests/run-all.sh  # 547 tests across 7 suites
+bash tests/run-all.sh  # 583 tests across 7 suites
 ```

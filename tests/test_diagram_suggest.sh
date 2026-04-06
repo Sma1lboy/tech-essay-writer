@@ -654,8 +654,415 @@ assert_contains "Chinese state detected" '"type": "state"' "$out"
 
 # ============================================================
 echo ""
+echo "=== additional detection heuristic tests ==="
+# ============================================================
+
+# --- Test 62: "on the other hand" triggers comparison ---
+PROJ=$(setup_md "othhand")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Database Choice
+PostgreSQL has great JSON support. On the other hand, MySQL is simpler to set up and operate.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "on the other hand triggers comparison" '"type": "comparison_table"' "$out"
+
+# --- Test 63: "option A/B/C" triggers comparison ---
+PROJ=$(setup_md "optabc")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Hosting
+Option A uses Docker containers for reproducible builds. Option B uses bare metal VMs for lower overhead and latency.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+opt_ct=$(echo "$out" | python3 -c "import json,sys; print(sum(1 for s in json.load(sys.stdin)['suggestions'] if s['type']=='comparison_table'))")
+assert_eq "option A/B triggers comparison" "true" "$([ "$opt_ct" -ge 1 ] && echo true || echo false)"
+
+# --- Test 64: "differences between" triggers comparison ---
+PROJ=$(setup_md "diffbetween")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Approaches
+The differences between REST and GraphQL are significant when considering developer experience.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "differences between triggers comparison" '"type": "comparison_table"' "$out"
+
+# --- Test 65: benefit/drawback + however triggers comparison ---
+PROJ=$(setup_md "benefit")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Storage
+The advantage of SSD is speed. However, the drawback is higher cost per gigabyte for storage.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "benefit/drawback triggers comparison" '"type": "comparison_table"' "$out"
+
+# --- Test 66: "depends on" triggers architecture ---
+PROJ=$(setup_md "depends")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Dependencies
+The auth module depends on the user service. The notification service integrates with the queue layer.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "depends on triggers architecture" '"type": "architecture"' "$out"
+
+# --- Test 67: websocket triggers sequence ---
+PROJ=$(setup_md "ws")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Real-time
+The websocket connection allows the server to push events. The client receives messages and the browser renders updates.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "websocket triggers sequence" '"type": "sequence"' "$out"
+
+# --- Test 68: grpc triggers sequence ---
+PROJ=$(setup_md "grpc")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Services
+The gRPC call from the client sends data. The server processes the request and returns a response.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "grpc triggers sequence" '"type": "sequence"' "$out"
+
+# --- Test 69: explicit state change pattern ---
+PROJ=$(setup_md "stchg")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Task Status
+The task changes from draft to published when the author submits it for review.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "changes from X to Y triggers state" '"type": "state"' "$out"
+
+# --- Test 70: version progression triggers timeline ---
+PROJ=$(setup_md "versions")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Releases
+The evolution from v1.0 to v2.0 brought breaking changes. Then v3.0 added the most requested features.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "version progression triggers timeline" '"type": "timeline"' "$out"
+
+# --- Test 71: milestone/roadmap triggers timeline ---
+PROJ=$(setup_md "roadmap")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Product Plan
+The roadmap includes a key milestone for Q1 2024 and another milestone for Q3 2024 delivery.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "roadmap/milestone triggers timeline" '"type": "timeline"' "$out"
+
+# --- Test 72: message passing with events triggers sequence ---
+PROJ=$(setup_md "msgpass")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Event Bus
+When an event is emitted, the subscriber processes the callback. Each message triggers a webhook notification.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "event/message triggers sequence" '"type": "sequence"' "$out"
+
+# --- Test 73: one-to-many triggers ER ---
+PROJ=$(setup_md "onetomany")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Data Design
+The one-to-many relationship between users and their orders is defined by the entity model schema.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "one-to-many triggers ER" '"type": "er"' "$out"
+
+# ============================================================
+echo ""
+echo "=== mermaid validity tests ==="
+# ============================================================
+
+# --- Test 74: architecture mermaid has node definitions ---
+PROJ=$(setup_md "archnodes")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# System
+The frontend service connects to the API gateway and the backend module handles data.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+arch_nodes=$(echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); m=[s['mermaid'] for s in d['suggestions'] if s['type']=='architecture']; print('[\"' in m[0] if m else False)")
+assert_eq "arch mermaid has node brackets" "True" "$arch_nodes"
+
+# --- Test 75: sequence mermaid has ->>+ arrows ---
+PROJ=$(setup_md "seqarrows")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# API
+The client sends a request to the server. The server returns a response with data.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+seq_req=$(echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); m=[s['mermaid'] for s in d['suggestions'] if s['type']=='sequence']; print('->>+' in m[0] if m else False)")
+assert_eq "sequence has ->>+ arrow" "True" "$seq_req"
+
+# --- Test 76: sequence mermaid has -->>- arrows ---
+seq_resp=$(echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); m=[s['mermaid'] for s in d['suggestions'] if s['type']=='sequence']; print('-->>-' in m[0] if m else False)")
+assert_eq "sequence has -->>- arrow" "True" "$seq_resp"
+
+# --- Test 77: state mermaid has initial marker [*] ---
+PROJ=$(setup_md "stateinit")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Workflow
+Jobs can be pending, active, completed, or failed. The state machine processes each.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+state_init=$(echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); m=[s['mermaid'] for s in d['suggestions'] if s['type']=='state']; print('[*]' in m[0] if m else False)")
+assert_eq "state mermaid has [*]" "True" "$state_init"
+
+# --- Test 78: state mermaid has transition arrows ---
+state_trans=$(echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); m=[s['mermaid'] for s in d['suggestions'] if s['type']=='state']; print('-->' in m[0] if m else False)")
+assert_eq "state mermaid has --> transition" "True" "$state_trans"
+
+# --- Test 79: ER mermaid has relationship syntax ---
+PROJ=$(setup_md "errel")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Schema
+The User entity has many Order records. The foreign key links them.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "ER mermaid has relationship" '||--o{' "$out"
+
+# --- Test 80: class mermaid has inheritance ---
+PROJ=$(setup_md "classinh")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Design
+The class Animal defines behavior. The class Dog extends Animal with new features.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+assert_contains "class mermaid has inheritance" "<|--" "$out"
+
+# ============================================================
+echo ""
+echo "=== field validation tests ==="
+# ============================================================
+
+# --- Test 81: all suggestions have non-empty description ---
+PROJ=$(setup_md "descs")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Full Test
+The frontend service connects to the backend module and database layer.
+
+## Steps
+First, build the app. Then, test it. Finally, deploy to production.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+echo "$out" > "$TMPDIR/descs.json"
+descs_ok=$(python3 -c "
+import json
+r = json.load(open('$TMPDIR/descs.json'))
+print(all(isinstance(s['description'], str) and len(s['description']) > 0 for s in r['suggestions']))
+")
+assert_eq "all descriptions are non-empty" "True" "$descs_ok"
+
+# --- Test 82: all suggestions have non-empty rationale ---
+rats_ok=$(python3 -c "
+import json
+r = json.load(open('$TMPDIR/descs.json'))
+print(all(isinstance(s['rationale'], str) and len(s['rationale']) > 0 for s in r['suggestions']))
+")
+assert_eq "all rationales are non-empty" "True" "$rats_ok"
+
+# --- Test 83: all suggestions have non-empty location ---
+locs_ok=$(python3 -c "
+import json
+r = json.load(open('$TMPDIR/descs.json'))
+print(all(isinstance(s['location'], str) and len(s['location']) > 0 for s in r['suggestions']))
+")
+assert_eq "all locations are non-empty" "True" "$locs_ok"
+
+# --- Test 84: mermaid is string or null for all suggestions ---
+mermaid_ok=$(python3 -c "
+import json
+r = json.load(open('$TMPDIR/descs.json'))
+print(all(s['mermaid'] is None or isinstance(s['mermaid'], str) for s in r['suggestions']))
+")
+assert_eq "mermaid is string or null" "True" "$mermaid_ok"
+
+# --- Test 85: diagram types have non-null mermaid ---
+mermaid_present=$(python3 -c "
+import json
+r = json.load(open('$TMPDIR/descs.json'))
+for s in r['suggestions']:
+    if s['type'] in ('flowchart', 'architecture', 'state', 'sequence', 'er', 'class', 'timeline'):
+        if s['mermaid'] is None or len(s['mermaid']) == 0:
+            print('BAD')
+            break
+else:
+    print('OK')
+")
+assert_eq "diagram types have mermaid content" "OK" "$mermaid_present"
+
+# --- Test 86: type_breakdown counts match actual ---
+counts_ok=$(python3 -c "
+import json
+from collections import Counter
+r = json.load(open('$TMPDIR/descs.json'))
+actual = Counter(s['type'] for s in r['suggestions'])
+tb = r['summary']['type_breakdown']
+match = all(tb.get(t, 0) == actual.get(t, 0) for t in set(list(actual.keys()) + list(tb.keys())))
+print(match)
+")
+assert_eq "type_breakdown matches actual counts" "True" "$counts_ok"
+
+# ============================================================
+echo ""
+echo "=== additional orchestrate tests ==="
+# ============================================================
+
+# --- Test 87: orchestrate uses final-internal as fallback ---
+PROJ=$(setup_md "orch-internal")
+cat > "$PROJ/.essay-state/final-internal.md" << 'EOF'
+# Internal Article
+The service layer communicates with the database module and the cache component.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJ" "$SCRIPT_DIR" build-diagram-suggestions 2>&1)
+assert_contains "orchestrate falls back to final-internal" '"suggestions"' "$out"
+
+# --- Test 88: orchestrate uses latest draft (v2 over v1) ---
+PROJ=$(setup_md "orch-v2")
+cat > "$PROJ/.essay-state/draft-v1.md" << 'EOF'
+# V1
+Nothing here.
+EOF
+cat > "$PROJ/.essay-state/draft-v2.md" << 'EOF'
+# V2
+The frontend service connects to the backend module and the gateway component for the database layer.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJ" "$SCRIPT_DIR" build-diagram-suggestions 2>&1)
+echo "$out" > "$TMPDIR/orch-v2.json"
+total=$(python3 -c "import json; print(json.load(open('$TMPDIR/orch-v2.json'))['summary']['total'])" 2>/dev/null || echo "0")
+assert_eq "orchestrate uses v2 and finds suggestions" "true" "$([ "$total" -ge 1 ] && echo true || echo false)"
+
+# --- Test 89: orchestrate output is valid JSON ---
+python3 -c "import json; json.load(open('$TMPDIR/orch-v2.json'))" 2>/dev/null
+assert_eq "orchestrate output is valid JSON" "0" "$?"
+
+# --- Test 90: orchestrate verbose mode ---
+PROJ=$(setup_md "orch-verb")
+cat > "$PROJ/.essay-state/draft-v1.md" << 'EOF'
+# Verbose Test
+The frontend service connects to the backend module and database layer component.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJ" "$SCRIPT_DIR" build-diagram-suggestions --verbose 2>&1)
+assert_contains "orchestrate verbose has text output" "Suggestion\|suggestions" "$out"
+
+# ============================================================
+echo ""
+echo "=== single-keyword threshold tests ==="
+# ============================================================
+
+# --- Test 91: single architecture keyword insufficient ---
+PROJ=$(setup_md "singlearch")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Overview
+This service handles user authentication and processes their login requests efficiently.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+arch_ct=$(echo "$out" | python3 -c "import json,sys; print(sum(1 for s in json.load(sys.stdin)['suggestions'] if s['type']=='architecture'))")
+assert_eq "single arch keyword not enough" "0" "$arch_ct"
+
+# --- Test 92: single state word insufficient ---
+PROJ=$(setup_md "singlestate")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Tasks
+All pending tasks are listed in the main dashboard view for the team to review and prioritize.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+state_ct=$(echo "$out" | python3 -c "import json,sys; print(sum(1 for s in json.load(sys.stdin)['suggestions'] if s['type']=='state'))")
+assert_eq "single state word not enough" "0" "$state_ct"
+
+# --- Test 93: two-item ordered list not enough for flowchart ---
+PROJ=$(setup_md "twoitem")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Short List
+1. Install the tool.
+2. Run the command.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+fc_ct=$(echo "$out" | python3 -c "import json,sys; types=[s['type'] for s in json.load(sys.stdin)['suggestions']]; print(types.count('flowchart'))")
+assert_eq "2-item list not enough for flowchart" "0" "$fc_ct"
+
+# --- Test 94: generic prose without actor interaction insufficient for sequence ---
+PROJ=$(setup_md "singleseq")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Notes
+The application formats the output data for display in a tabular layout for end users.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+seq_ct=$(echo "$out" | python3 -c "import json,sys; print(sum(1 for s in json.load(sys.stdin)['suggestions'] if s['type']=='sequence'))")
+assert_eq "generic prose no sequence" "0" "$seq_ct"
+
+# ============================================================
+echo ""
+echo "=== section parsing tests ==="
+# ============================================================
+
+# --- Test 95: intro section gets correct location ---
+PROJ=$(setup_md "introloc")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+The client sends a request to the server and receives a response via HTTP.
+
+# Main
+Some content here.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+intro_loc=$(echo "$out" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+for s in r['suggestions']:
+    if 'intro' in s['location'].lower() or 'Introduction' in s['location']:
+        print('found')
+        break
+else:
+    print('not_found')
+")
+assert_eq "intro section has Introduction location" "found" "$intro_loc"
+
+# --- Test 96: nested headings produce distinct locations ---
+PROJ=$(setup_md "nested")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Top
+
+## Sub Section
+The client sends a request and the server returns a response via HTTP.
+
+### Deep Section
+First install, then configure, finally deploy to the production pipeline stage.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+locs=$(echo "$out" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+for s in r['suggestions']:
+    print(s['location'])
+")
+assert_contains "nested headings in locations" "Sub Section\|Deep Section" "$locs"
+
+# --- Test 97: multiple sections produce multiple distinct locations ---
+PROJ=$(setup_md "multloc")
+cat > "$PROJ/.essay-state/test.md" << 'EOF'
+# Article
+
+## Architecture
+The frontend service connects to the backend module and the database layer.
+
+## API Flow
+The client sends a request to the server. The server calls the database and returns data.
+EOF
+out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJ/.essay-state/test.md" 2>&1)
+distinct=$(echo "$out" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+locs = set(s['location'] for s in r['suggestions'])
+print(len(locs) >= 2)
+")
+assert_eq "multiple distinct locations" "True" "$distinct"
+
+# ============================================================
+echo ""
 echo "========================================"
-echo "diagram-suggest tests: $((PASS + FAIL)) | Pass: $PASS | Fail: $FAIL"
+echo "Pass: $PASS | Fail: $FAIL"
+if [ "$FAIL" -eq 0 ]; then
+  echo "ALL TESTS PASSED"
+else
+  echo "SOME TESTS FAILED"
+fi
 echo "========================================"
 
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1
