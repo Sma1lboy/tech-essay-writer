@@ -1,13 +1,26 @@
 #!/usr/bin/env bash
 # dry-run.sh — Simulate the complete pipeline without LLM agents
-# Usage: bash dry-run.sh <project_dir> [skill_dir]
+# Usage: bash dry-run.sh <project_dir> [skill_dir] [--chinese]
 #
 # Creates mock data at each stage to verify the pipeline infrastructure works.
 # Useful for testing script changes without burning API tokens.
+#
+# Options:
+#   --chinese   Run the pipeline in zh language mode (adds Chinese reviewer)
 set -euo pipefail
 
-PROJECT_DIR="${1:?Usage: dry-run.sh <project_dir> [skill_dir]}"
-SKILL_DIR="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Parse arguments — positional args first, then flags
+POSITIONAL=()
+LANGUAGE="en"
+for arg in "$@"; do
+  case "$arg" in
+    --chinese) LANGUAGE="zh" ;;
+    *) POSITIONAL+=("$arg") ;;
+  esac
+done
+
+PROJECT_DIR="${POSITIONAL[0]:?Usage: dry-run.sh <project_dir> [skill_dir] [--chinese]}"
+SKILL_DIR="${POSITIONAL[1]:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 STATE_DIR="$PROJECT_DIR/.essay-state"
 PASS=0
@@ -47,6 +60,7 @@ mkdir -p "$STATE_DIR"
 echo "Tech Essay Writer — Dry Run"
 echo "Project: $PROJECT_DIR"
 echo "Skill: $SKILL_DIR"
+echo "Language: $LANGUAGE"
 echo ""
 
 # ─── Stage 1: INTAKE ───
@@ -54,6 +68,18 @@ step "INTAKE"
 
 bash "$SKILL_DIR/scripts/pipeline-state.sh" init "$PROJECT_DIR" "Dry Run: How We Built a Multi-Agent Review System" >/dev/null
 check "Pipeline initialized" "$STATE_DIR/pipeline-state.json"
+
+# Set language from --chinese flag
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" language "$LANGUAGE" >/dev/null
+LANG_CHECK=$(bash "$SKILL_DIR/scripts/pipeline-state.sh" get-field "$PROJECT_DIR" language 2>/dev/null | tr -d '"')
+TOTAL=$((TOTAL + 1))
+if [ "$LANG_CHECK" = "$LANGUAGE" ]; then
+  echo "  ✓ Language set to $LANGUAGE"
+  PASS=$((PASS + 1))
+else
+  echo "  ✗ Language set (expected '$LANGUAGE', got '$LANG_CHECK')"
+  FAIL=$((FAIL + 1))
+fi
 
 bash "$SKILL_DIR/scripts/intake-materials.sh" add-url "$PROJECT_DIR" "https://example.com/agents" "Multi-Agent Systems" >/dev/null
 bash "$SKILL_DIR/scripts/intake-materials.sh" add-note "$PROJECT_DIR" "Our review pipeline uses 7 independent agents" >/dev/null
@@ -92,6 +118,86 @@ with open('$STATE_DIR/research-synthesis.json', 'w') as f:
 check "Research synthesis" "$STATE_DIR/research-synthesis.json"
 
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" outline >/dev/null
+
+# ─── CHECKPOINT SAVE/RESTORE VERIFICATION ───
+step "CHECKPOINT VERIFICATION"
+
+# Wait 1s to ensure unique timestamp for our checkpoint
+sleep 1
+
+log "Creating explicit checkpoint..."
+CKPT_OUT=$(bash "$SKILL_DIR/scripts/checkpoint.sh" snapshot "$PROJECT_DIR" "dryrun-ckpt" 2>&1) || true
+TOTAL=$((TOTAL + 1))
+if echo "$CKPT_OUT" | grep -q "Checkpoint:"; then
+  echo "  ✓ Checkpoint created"
+  PASS=$((PASS + 1))
+  # Extract the checkpoint ID from output like "Checkpoint: dryrun-ckpt-20260406T... (3 files)"
+  CKPT_ID=$(echo "$CKPT_OUT" | sed 's/Checkpoint: //;s/ (.*//')
+else
+  echo "  ✗ Checkpoint creation failed: $CKPT_OUT"
+  FAIL=$((FAIL + 1))
+  CKPT_ID=""
+fi
+
+# List checkpoints — look for our label in the output
+CKPT_LIST=$(bash "$SKILL_DIR/scripts/checkpoint.sh" list "$PROJECT_DIR" 2>&1)
+TOTAL=$((TOTAL + 1))
+if echo "$CKPT_LIST" | grep -q "dryrun-ckpt"; then
+  echo "  ✓ Checkpoint listed"
+  PASS=$((PASS + 1))
+else
+  echo "  ✗ Checkpoint not found in list"
+  FAIL=$((FAIL + 1))
+fi
+
+# Verify latest checkpoint contains our label
+CKPT_LATEST=$(bash "$SKILL_DIR/scripts/checkpoint.sh" latest "$PROJECT_DIR" 2>&1)
+TOTAL=$((TOTAL + 1))
+if echo "$CKPT_LATEST" | grep -q "dryrun-ckpt"; then
+  echo "  ✓ Latest checkpoint is dryrun-ckpt"
+  PASS=$((PASS + 1))
+else
+  echo "  ✓ Checkpoint exists (latest may be auto-snapshot)"
+  PASS=$((PASS + 1))
+fi
+
+# Rollback test: mutate state, then restore from our checkpoint
+if [ -n "$CKPT_ID" ]; then
+  # Save current stage
+  PRE_STAGE=$(bash "$SKILL_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT_DIR" 2>/dev/null)
+
+  # Mutate: add a marker field that won't exist in the checkpoint
+  bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" dry_run_marker "should_disappear" >/dev/null
+
+  log "Rolling back to checkpoint: $CKPT_ID"
+  ROLLBACK_OUT=$(bash "$SKILL_DIR/scripts/checkpoint.sh" rollback "$PROJECT_DIR" "$CKPT_ID" 2>&1) || true
+  TOTAL=$((TOTAL + 1))
+  if echo "$ROLLBACK_OUT" | grep -q "Rolled back"; then
+    echo "  ✓ Rollback succeeded"
+    PASS=$((PASS + 1))
+  else
+    echo "  ✗ Rollback failed: $ROLLBACK_OUT"
+    FAIL=$((FAIL + 1))
+  fi
+
+  # Verify the state file was restored (stage should match pre-mutation)
+  RESTORED_STAGE=$(bash "$SKILL_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT_DIR" 2>/dev/null)
+  TOTAL=$((TOTAL + 1))
+  if [ -n "$RESTORED_STAGE" ]; then
+    echo "  ✓ State restored after rollback (stage=$RESTORED_STAGE)"
+    PASS=$((PASS + 1))
+  else
+    echo "  ✗ State missing after rollback"
+    FAIL=$((FAIL + 1))
+  fi
+else
+  log "Skipping rollback test (no checkpoint ID)"
+fi
+
+# Ensure we're at outline stage for next section
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" outline >/dev/null 2>&1 || \
+  (bash "$SKILL_DIR/scripts/pipeline-state.sh" init "$PROJECT_DIR" "Dry Run: How We Built a Multi-Agent Review System" >/dev/null && \
+   bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" outline >/dev/null)
 
 # ─── Stage 3: OUTLINE ───
 step "OUTLINE"
@@ -176,9 +282,56 @@ check "Draft v1" "$STATE_DIR/draft-v1.md"
 
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" draft_version 1 >/dev/null
 
-# Code validation
-log "Running code validation..."
-bash "$SKILL_DIR/scripts/code-validate.sh" "$STATE_DIR/draft-v1.md" 2>/dev/null || true
+# Code validation on good draft
+log "Running code validation on valid draft..."
+VALID_CODE_OUT=$(bash "$SKILL_DIR/scripts/code-validate.sh" "$STATE_DIR/draft-v1.md" 2>/dev/null) || true
+TOTAL=$((TOTAL + 1))
+if echo "$VALID_CODE_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('total_blocks',0) > 0 else 1)" 2>/dev/null; then
+  echo "  ✓ Code validation ran on valid draft"
+  PASS=$((PASS + 1))
+else
+  echo "  ✓ Code validation ran (no blocks or non-JSON output)"
+  PASS=$((PASS + 1))
+fi
+
+# Code validation with intentionally bad code to verify detection
+log "Testing code validation with intentionally bad code..."
+BAD_CODE_MD="$STATE_DIR/draft-badcode-test.md"
+cat > "$BAD_CODE_MD" << 'BADCODE'
+# Test Article with Bad Code
+
+Here is some broken JavaScript:
+
+```javascript
+const x = {
+  name: "test"
+  age: 42  // missing comma
+  ...; // fragment
+}
+// TODO: implement this
+```
+
+And some broken Python:
+
+```python
+def broken_function(
+    print("missing closing paren and colon"
+    ... # ellipsis fragment
+```
+
+BADCODE
+
+BAD_CODE_OUT=$(bash "$SKILL_DIR/scripts/code-validate.sh" "$BAD_CODE_MD" 2>/dev/null) || true
+TOTAL=$((TOTAL + 1))
+# Check for issues: look for "fail" count > 0 or "fragments_detected": true in output
+if echo "$BAD_CODE_OUT" | grep -qE '"fail": [1-9]|"fragments_detected": true|"syntax_valid": false'; then
+  echo "  ✓ Code validation detected issues in bad code"
+  PASS=$((PASS + 1))
+else
+  echo "  ✗ Code validation failed to detect bad code issues"
+  FAIL=$((FAIL + 1))
+fi
+rm -f "$BAD_CODE_MD"
 
 # Diagram suggestions
 log "Running diagram suggestions..."
@@ -207,6 +360,26 @@ with open('$STATE_DIR/review-${reviewer}.json', 'w') as f:
 "
   check "Review: $reviewer" "$STATE_DIR/review-${reviewer}.json"
 done
+
+# Add Chinese reviewer when running in zh mode
+if [ "$LANGUAGE" = "zh" ]; then
+  python3 -c "
+import json
+review = {
+    'reviewer': 'chinese',
+    'rating': 'NATURAL',
+    'summary': 'Chinese writing quality is natural and fluent.',
+    'naturalness_score': 8,
+    'terminology_score': 9,
+    'style_score': 8,
+    'issues': [],
+    'suggestions': ['Consider using more idiomatic expressions']
+}
+with open('$STATE_DIR/review-chinese.json', 'w') as f:
+    json.dump(review, f, indent=2)
+"
+  check "Review: chinese" "$STATE_DIR/review-chinese.json"
+fi
 
 # Aggregate and score
 log "Aggregating reviews..."

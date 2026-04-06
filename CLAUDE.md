@@ -72,7 +72,7 @@ After aggregation, `calibrate-reviews.sh` normalizes scores to 1-10, detects
 outliers (>1.5 std dev from panel average), identifies blind spots (topics no
 reviewer covered), and measures inter-reviewer agreement.
 
-## Script Inventory (33 scripts)
+## Script Inventory (38 scripts)
 
 | Script | Description |
 |--------|-------------|
@@ -101,7 +101,7 @@ reviewer covered), and measures inter-reviewer agreement.
 | `publish-check.sh` | Pre-publish checklist (validates article readiness across multiple dimensions) |
 | `publishing-guide.sh` | Per-platform publishing workflow guides with SEO tips (internal/external/medium/devto/hashnode/wechat/juejin/all) |
 | `checkpoint.sh` | State checkpoint and recovery (snapshot/list/rollback/latest/clean) |
-| `dry-run.sh` | Full pipeline simulation with mock data -- validates infrastructure without LLM agents |
+| `dry-run.sh` | Full pipeline simulation with mock data -- validates infrastructure without LLM agents (supports --chinese for zh mode) |
 | `install.sh` | Skill installer/uninstaller (symlink components into ~/.claude/skills/) |
 | `fetch-urls.sh` | URL content fetcher for materials intake |
 | `update-material.sh` | Update a specific material source with fetched content and key points |
@@ -109,6 +109,11 @@ reviewer covered), and measures inter-reviewer agreement.
 | `hook-workshop.sh` | Opening hook generator and scorer (story/data/question/contrast/bold styles) |
 | `title-generator.sh` | Title variation generator with scoring from research and materials |
 | `topic-research.sh` | Research question generator, competitive landscape queries, unique angles, and research brief from a topic |
+| `outline-mixer.sh` | Outline variant mixer: combine elements from multiple outlines |
+| `metrics-dashboard.sh` | Comprehensive metrics dashboard: pipeline health, quality trends, author growth |
+| `summary.sh` | Quick project status and capability overview |
+| `help.sh` | Usage reference: list all scripts with descriptions, or detailed help for a specific command |
+| `version.sh` | Version tracking: show current version, bump major/minor/patch |
 
 ## Prompt Inventory (21 prompts)
 
@@ -151,7 +156,7 @@ reviewer covered), and measures inter-reviewer agreement.
 | `release-announcement.md` | Release notes / launch announcement with migration guide |
 | `adr.md` | Architecture Decision Record with context, options, decision |
 
-## Test Inventory (22 suites, 1738 tests)
+## Test Inventory (25 suites)
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
@@ -177,10 +182,13 @@ reviewer covered), and measures inter-reviewer agreement.
 | `test_title_hook.sh` | 59 | Title generator + hook workshop |
 | `test_topic_research.sh` | 59 | Topic research question generation and brief output |
 | `test_chinese_reviewer.sh` | 23 | Chinese reviewer integration (language=zh activation, quality-score, pipeline-state) |
+| `test_outline_mixer.sh` | — | Outline mixer tests |
+| `test_metrics_dashboard.sh` | — | Metrics dashboard tests |
+| `test_help_version.sh` | 46 | Help command listing + version tracking (show, raw, bump, help flags) |
 
 Run all tests:
 ```bash
-bash tests/run-all.sh                    # All 1738 tests
+bash tests/run-all.sh                    # All test suites
 bash tests/run-all.sh --filter readab    # Filter by pattern
 bash tests/run-all.sh --verbose --timing # Show all output + timing
 ```

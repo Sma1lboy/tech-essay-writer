@@ -116,6 +116,13 @@
       "status": "running",
       "commits": [],
       "summary": ""
+    },
+    {
+      "number": 17,
+      "direction": "Create a comprehensive end-to-end integration test that simulates the complete pipeline from intake to polish using real mock data. Test all script interactions, state transitions, checkpoint auto-saves, and output file generation. The test should exercise the actual scripts (not mock them).",
+      "status": "running",
+      "commits": [],
+      "summary": ""
     }
   ],
   "consecutive_complete": 1,

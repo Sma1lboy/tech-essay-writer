@@ -31,6 +31,10 @@ if [ ! -d "$SKILL_DIR/scripts" ]; then
   done
 fi
 PROJECT_DIR="$(pwd)"
+
+# Show version
+bash "$SKILL_DIR/scripts/version.sh" show
+
 echo "SKILL_DIR=$SKILL_DIR"
 echo "PROJECT_DIR=$PROJECT_DIR"
 
@@ -40,6 +44,8 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" status 2>/d
 
 # Load user config and show defaults
 bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-config-summary
+
+# For command reference: bash "$SKILL_DIR/scripts/help.sh"
 ```
 
 ## CRITICAL: Act Immediately
@@ -541,6 +547,16 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-analy
 ```
 Analytics insights are auto-injected into writer and reviewer prompts via `build-analytics-insights`.
 
+## Help & Version
+
+Show all available scripts with descriptions:
+```bash
+bash "$SKILL_DIR/scripts/help.sh"                  # List all 38 scripts
+bash "$SKILL_DIR/scripts/help.sh" <command>         # Detailed help for a script
+bash "$SKILL_DIR/scripts/version.sh"                # Show current version
+bash "$SKILL_DIR/scripts/version.sh" bump patch     # Bump version (major/minor/patch)
+```
+
 ## Dry-Run Mode
 
 Simulate the complete pipeline without LLM agents — useful for testing infrastructure
@@ -548,11 +564,14 @@ changes without burning API tokens:
 
 ```bash
 bash "$SKILL_DIR/scripts/dry-run.sh" "$PROJECT_DIR" "$SKILL_DIR"
+bash "$SKILL_DIR/scripts/dry-run.sh" "$PROJECT_DIR" "$SKILL_DIR" --chinese  # zh language mode
 ```
 
 The dry-run creates mock data at each stage, exercises every script (pipeline-state,
 intake, orchestrate prompt builders, reviews, aggregate, calibrate, quality-score,
-formatting, social package, etc.), and reports pass/fail per checkpoint. Use this to
+formatting, social package, checkpoint save/restore, code validation with bad code
+detection, etc.), and reports pass/fail per checkpoint. Use `--chinese` to test the
+zh language mode which activates the Chinese writing quality reviewer. Use this to
 validate that script changes haven't broken the pipeline infrastructure.
 
 ## Series Support
