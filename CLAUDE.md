@@ -151,7 +151,7 @@ reviewer covered), and measures inter-reviewer agreement.
 | `release-announcement.md` | Release notes / launch announcement with migration guide |
 | `adr.md` | Architecture Decision Record with context, options, decision |
 
-## Test Inventory (21 suites, 1715 tests)
+## Test Inventory (22 suites, 1738 tests)
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
@@ -176,10 +176,11 @@ reviewer covered), and measures inter-reviewer agreement.
 | `test_export.sh` | 69 | Export and archive system (bundle/markdown/html/json/archive/list-archive) |
 | `test_title_hook.sh` | 59 | Title generator + hook workshop |
 | `test_topic_research.sh` | 59 | Topic research question generation and brief output |
+| `test_chinese_reviewer.sh` | 23 | Chinese reviewer integration (language=zh activation, quality-score, pipeline-state) |
 
 Run all tests:
 ```bash
-bash tests/run-all.sh                    # All 1715 tests
+bash tests/run-all.sh                    # All 1738 tests
 bash tests/run-all.sh --filter readab    # Filter by pattern
 bash tests/run-all.sh --verbose --timing # Show all output + timing
 ```

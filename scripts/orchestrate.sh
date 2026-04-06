@@ -15,6 +15,7 @@ Commands:
   build-research-prompt Build research agent prompt
   build-outline-prompts Build 3 parallel outline agent prompts
   build-outline-critique-prompt  Build outline adversarial critique prompt
+  build-outline-mix <spec|list>  Mix sections from outline variants or list them
   build-writer-prompt   Build writer agent prompt
   build-review-prompts  Build 7 parallel review agent prompts
   build-refiner-prompt  Build refiner agent prompt (with round number)
@@ -523,6 +524,11 @@ $(build_language_directive)
 4. Write your critique to \`.essay-state/outline-critique.json\`
 5. Be specific — reference exact section names, not vague observations
 PROMPT_END
+}
+
+cmd_build_outline_mix() {
+  local spec_or_cmd="${1:?sections_spec or 'list' required}"
+  bash "$SKILL_DIR/scripts/outline-mixer.sh" "$PROJECT_DIR" "$spec_or_cmd"
 }
 
 cmd_build_writer_prompt() {
@@ -1419,6 +1425,7 @@ case "$CMD" in
   build-research-prompt) cmd_build_research_prompt ;;
   build-outline-prompts) cmd_build_outline_prompts "$@" ;;
   build-outline-critique-prompt) cmd_build_outline_critique_prompt ;;
+  build-outline-mix) cmd_build_outline_mix "$@" ;;
   build-writer-prompt) cmd_build_writer_prompt "$@" ;;
   build-review-prompts) cmd_build_review_prompts "$@" ;;
   build-refiner-prompt) cmd_build_refiner_prompt "$@" ;;
