@@ -10,8 +10,10 @@ SUITES_PASS=0
 SUITES_FAIL=0
 FILTER=""
 VERBOSE=false
-TIMING=false
+TIMING=true
 FAILED_SUITES=""
+SLOWEST_SUITE=""
+SLOWEST_TIME=0
 
 # Parse args
 while [ $# -gt 0 ]; do
@@ -62,8 +64,12 @@ for test_file in "$SCRIPT_DIR"/test_*.sh; do
     echo "$output" | tail -3
   fi
 
-  if [ "$TIMING" = true ]; then
-    echo "  (${SUITE_DURATION}s)"
+  echo "  (${SUITE_DURATION}s)"
+
+  # Track slowest suite
+  if [ "$SUITE_DURATION" -gt "$SLOWEST_TIME" ]; then
+    SLOWEST_TIME=$SUITE_DURATION
+    SLOWEST_SUITE=$name
   fi
 done
 
@@ -74,8 +80,9 @@ echo ""
 echo "========================================"
 echo "ALL SUITES: $((SUITES_PASS + SUITES_FAIL)) | Pass: $SUITES_PASS | Fail: $SUITES_FAIL"
 echo "ALL TESTS:  $((TOTAL_PASS + TOTAL_FAIL)) | Pass: $TOTAL_PASS | Fail: $TOTAL_FAIL"
-if [ "$TIMING" = true ]; then
-  echo "TOTAL TIME: ${TOTAL_DURATION}s"
+echo "TOTAL TIME: ${TOTAL_DURATION}s"
+if [ -n "$SLOWEST_SUITE" ]; then
+  echo "SLOWEST:    $SLOWEST_SUITE (${SLOWEST_TIME}s)"
 fi
 echo "========================================"
 
