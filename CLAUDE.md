@@ -33,6 +33,7 @@ scripts/
   influence-score.sh        # Influence potential predictor (novelty, SEO, social, audience)
   seo-metadata.sh           # SEO metadata generator (OG, meta, JSON-LD, keyword density)
   code-validate.sh          # Code example validator (syntax, imports, fragment detection)
+  diagram-suggest.sh        # Diagram/image suggestion engine (Mermaid syntax, bilingual)
   fetch-urls.sh             # URL content fetcher
   update-material.sh        # Update material with fetched content
 prompts/
@@ -74,6 +75,7 @@ tests/
   test_branding.sh          # Personal branding engine tests
   test_influence_seo.sh     # Influence score + SEO metadata tests
   test_templates_codevalidate.sh  # Template + code validation tests
+  test_diagram_suggest.sh   # Diagram suggestion engine tests
   run-all.sh                # Test runner
 ```
 
@@ -100,6 +102,7 @@ During execution, `.essay-state/` contains:
 - `social-package.json` — social media snippets
 - `influence-score.json` — predicted influence/reach potential
 - `seo-metadata.json` — OpenGraph, meta tags, JSON-LD, keyword density
+- `diagram-suggestions.json` — suggested diagrams/visuals with Mermaid syntax
 
 ## Conventions
 
@@ -113,5 +116,5 @@ During execution, `.essay-state/` contains:
 ## Testing
 
 ```bash
-bash tests/run-all.sh  # 486 tests across 6 suites
+bash tests/run-all.sh  # 547 tests across 7 suites
 ```

@@ -24,6 +24,7 @@ Commands:
   build-influence-score Compute influence score from state data (no agent needed)
   build-seo-metadata    Generate SEO metadata from article + state data (no agent needed)
   build-code-validation Validate code examples in the latest draft
+  build-diagram-suggestions Suggest diagrams/images for the latest draft
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
 EOF
@@ -792,6 +793,26 @@ cmd_build_code_validation() {
   bash "$SKILL_DIR/scripts/code-validate.sh" "$draft_path"
 }
 
+cmd_build_diagram_suggestions() {
+  local verbose="${1:-}"
+  local draft_path
+  draft_path=$(latest_draft)
+  if [ -z "$draft_path" ]; then
+    # Try final-external, then final-internal
+    for f in "$STATE_DIR/final-external.md" "$STATE_DIR/final-internal.md"; do
+      if [ -f "$f" ]; then
+        draft_path="$f"
+        break
+      fi
+    done
+  fi
+  if [ -z "$draft_path" ]; then
+    echo '{"error":"no draft or final article found for diagram suggestions"}'
+    return 1
+  fi
+  bash "$SKILL_DIR/scripts/diagram-suggest.sh" "$draft_path" "$verbose"
+}
+
 cmd_check_convergence() {
   local round="${1:-1}"
   local adv_review
@@ -840,6 +861,7 @@ case "$CMD" in
   build-influence-score) cmd_build_influence_score "$@" ;;
   build-seo-metadata) cmd_build_seo_metadata "$@" ;;
   build-code-validation) cmd_build_code_validation "$@" ;;
+  build-diagram-suggestions) cmd_build_diagram_suggestions "$@" ;;
   list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
   *) usage; exit 1 ;;
