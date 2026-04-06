@@ -17,6 +17,17 @@ Key patterns:
 - **Article series**: multi-article series with narrative arc, reading order, and shared context
 - **Analytics feedback**: performance tracking + taste memory integration for data-driven improvements
 
+## Setup
+
+Install the skill by symlinking components into `~/.claude/skills/`:
+
+```bash
+bash scripts/install.sh              # Install
+bash scripts/install.sh --uninstall  # Uninstall
+```
+
+This creates `~/.claude/skills/tech-essay-writer/` as a real directory with symlinks to `SKILL.md`, `scripts/`, `prompts/`, and `templates/` — keeping `.git`, `tests/`, and other dev files out of the skill directory.
+
 ## Directory Structure
 
 ```
@@ -39,6 +50,9 @@ scripts/
   diagram-suggest.sh        # Diagram/image suggestion engine (Mermaid syntax, bilingual)
   series-manager.sh         # Article series manager (reading order, narrative arc, shared context)
   analytics-feedback.sh     # Analytics feedback loop (metrics tracking, taste memory integration)
+  progress-display.sh       # Rich pipeline progress visualization (stages, %, quality, artifacts)
+  publishing-guide.sh       # Per-platform publishing workflow guides with SEO tips
+  install.sh                # Skill installer (symlink components into ~/.claude/skills/)
   fetch-urls.sh             # URL content fetcher
   update-material.sh        # Update material with fetched content
 prompts/
@@ -83,6 +97,8 @@ tests/
   test_diagram_suggest.sh   # Diagram suggestion engine tests
   test_series_analytics.sh  # Series manager + analytics feedback tests
   test_config.sh            # Configuration system tests
+  test_progress_publishing.sh  # Progress display + publishing guide tests
+  test_install.sh           # Install/uninstall script tests
   run-all.sh                # Test runner
 ```
 
@@ -130,5 +146,5 @@ Persistent data at `~/.tech-essay-writer/`:
 ## Testing
 
 ```bash
-bash tests/run-all.sh  # 680 tests across 9 suites
+bash tests/run-all.sh  # 1136 tests across 14 suites
 ```
