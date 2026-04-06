@@ -32,6 +32,7 @@ scripts/
   expertise-graph.sh       # Topic authority tracking
   influence-score.sh        # Influence potential predictor (novelty, SEO, social, audience)
   seo-metadata.sh           # SEO metadata generator (OG, meta, JSON-LD, keyword density)
+  code-validate.sh          # Code example validator (syntax, imports, fragment detection)
   fetch-urls.sh             # URL content fetcher
   update-material.sh        # Update material with fetched content
 prompts/
@@ -61,12 +62,18 @@ templates/
   narrative.md              # Narrative/war-story structure
   opinion.md                # Opinion/hot-take structure
   case-study.md             # Case study structure
+  comparison.md             # X vs Y comparison structure
+  listicle.md               # N things/tools/tips structure
+  incident-postmortem.md    # Incident post-mortem structure
+  release-announcement.md   # Release notes / launch announcement structure
+  adr.md                    # Architecture Decision Record structure
 tests/
   test_pipeline.sh          # Unit tests for core scripts (29 tests)
   test_orchestrate.sh       # Integration tests for orchestrator (54 tests)
   test_e2e_dryrun.sh        # E2E dry run simulation (53 tests)
   test_branding.sh          # Personal branding engine tests
   test_influence_seo.sh     # Influence score + SEO metadata tests
+  test_templates_codevalidate.sh  # Template + code validation tests
   run-all.sh                # Test runner
 ```
 
@@ -106,5 +113,5 @@ During execution, `.essay-state/` contains:
 ## Testing
 
 ```bash
-bash tests/run-all.sh  # 336 tests across 5 suites
+bash tests/run-all.sh  # 486 tests across 6 suites
 ```

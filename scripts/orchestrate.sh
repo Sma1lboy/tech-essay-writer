@@ -23,6 +23,7 @@ Commands:
   build-calibration-summary  Build human-readable calibration summary
   build-influence-score Compute influence score from state data (no agent needed)
   build-seo-metadata    Generate SEO metadata from article + state data (no agent needed)
+  build-code-validation Validate code examples in the latest draft
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
 EOF
@@ -772,6 +773,25 @@ cmd_build_seo_metadata() {
   bash "$SKILL_DIR/scripts/seo-metadata.sh" "$PROJECT_DIR" "$verbose"
 }
 
+cmd_build_code_validation() {
+  local draft_path
+  draft_path=$(latest_draft)
+  if [ -z "$draft_path" ]; then
+    # Try final-external, then final-internal
+    for f in "$STATE_DIR/final-external.md" "$STATE_DIR/final-internal.md"; do
+      if [ -f "$f" ]; then
+        draft_path="$f"
+        break
+      fi
+    done
+  fi
+  if [ -z "$draft_path" ]; then
+    echo '{"error":"no draft or final article found to validate"}'
+    return 1
+  fi
+  bash "$SKILL_DIR/scripts/code-validate.sh" "$draft_path"
+}
+
 cmd_check_convergence() {
   local round="${1:-1}"
   local adv_review
@@ -819,6 +839,7 @@ case "$CMD" in
   build-calibration-summary) cmd_build_calibration_summary ;;
   build-influence-score) cmd_build_influence_score "$@" ;;
   build-seo-metadata) cmd_build_seo_metadata "$@" ;;
+  build-code-validation) cmd_build_code_validation "$@" ;;
   list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
   *) usage; exit 1 ;;
