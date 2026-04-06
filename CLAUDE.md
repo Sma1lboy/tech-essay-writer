@@ -68,7 +68,7 @@ After aggregation, `calibrate-reviews.sh` normalizes scores to 1-10, detects
 outliers (>1.5 std dev from panel average), identifies blind spots (topics no
 reviewer covered), and measures inter-reviewer agreement.
 
-## Script Inventory (26 scripts)
+## Script Inventory (25 scripts)
 
 | Script | Description |
 |--------|-------------|
@@ -78,7 +78,6 @@ reviewer covered), and measures inter-reviewer agreement.
 | `detect-input.sh` | Classify user input text into URLs, code blocks, file paths, notes, themes |
 | `aggregate-reviews.sh` | Aggregate 7 review JSON files into panel summary with consensus determination |
 | `calibrate-reviews.sh` | Post-aggregate calibration: normalize scores, detect outliers and blind spots |
-| `build-agent-prompt.sh` | Generic prompt builder: inline template + all available context into a single file |
 | `taste-memory.sh` | Persistent writing style preferences (read/update/record-choice/diff-learn/feedback/suggest) |
 | `cross-reference.sh` | Published article registry for internal linking (add/search/suggest/remove) |
 | `config.sh` | User configuration management (platforms, style, language, max rounds, audiences) |

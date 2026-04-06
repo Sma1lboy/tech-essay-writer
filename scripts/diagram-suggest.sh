@@ -21,7 +21,7 @@ EOF
 fi
 
 if [ ! -f "$MARKDOWN_FILE" ]; then
-  echo '{"error":"file not found","file":"'"$MARKDOWN_FILE"'"}'
+  python3 -c "import json,sys; print(json.dumps({'error':'file not found','file':sys.argv[1]}))" "$MARKDOWN_FILE"
   exit 1
 fi
 

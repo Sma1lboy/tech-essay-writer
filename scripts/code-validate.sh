@@ -27,168 +27,9 @@ if [ -z "$MARKDOWN_FILE" ]; then
 fi
 
 if [ ! -f "$MARKDOWN_FILE" ]; then
-  echo "{\"error\":\"file not found\",\"file\":\"$MARKDOWN_FILE\"}"
+  python3 -c "import json,sys; print(json.dumps({'error':'file not found','file':sys.argv[1]}))" "$MARKDOWN_FILE"
   exit 1
 fi
-
-# Normalize language tags
-normalize_lang() {
-  case "$1" in
-    javascript|js) echo "javascript" ;;
-    typescript|ts) echo "typescript" ;;
-    python|py)     echo "python" ;;
-    go)            echo "go" ;;
-    rust)          echo "rust" ;;
-    bash|sh)       echo "bash" ;;
-    java)          echo "java" ;;
-    *)             echo "" ;;
-  esac
-}
-
-# Check if a language tool is available
-check_tool() {
-  local lang="$1"
-  case "$lang" in
-    javascript|typescript) command -v node >/dev/null 2>&1 ;;
-    python)                command -v python3 >/dev/null 2>&1 ;;
-    go)                    command -v go >/dev/null 2>&1 ;;
-    rust)                  command -v rustc >/dev/null 2>&1 ;;
-    bash)                  command -v bash >/dev/null 2>&1 ;;
-    java)                  command -v javac >/dev/null 2>&1 ;;
-    *)                     return 1 ;;
-  esac
-}
-
-# Syntax check a code block
-syntax_check() {
-  local lang="$1" tmpfile="$2"
-  local result=""
-  case "$lang" in
-    javascript)
-      result=$(node --check "$tmpfile" 2>&1) && echo "ok" || echo "$result"
-      ;;
-    typescript)
-      # Use node --check as basic parse; ts-specific checks need tsc
-      result=$(node --check "$tmpfile" 2>&1) && echo "ok" || echo "$result"
-      ;;
-    python)
-      result=$(python3 -c "
-import sys, py_compile
-try:
-    py_compile.compile(sys.argv[1], doraise=True)
-    print('ok')
-except py_compile.PyCompileError as e:
-    print(str(e))
-" "$tmpfile" 2>&1) && echo "$result" || echo "$result"
-      ;;
-    go)
-      # go vet needs a package; use basic parse check
-      result=$(go vet "$tmpfile" 2>&1) && echo "ok" || echo "$result"
-      ;;
-    rust)
-      result=$(rustc --edition 2021 --crate-type lib "$tmpfile" -o /dev/null 2>&1) && echo "ok" || echo "$result"
-      ;;
-    bash)
-      result=$(bash -n "$tmpfile" 2>&1) && echo "ok" || echo "$result"
-      ;;
-    java)
-      result=$(javac -d /tmp "$tmpfile" 2>&1) && echo "ok" || echo "$result"
-      ;;
-  esac
-}
-
-# Get file extension for language
-lang_ext() {
-  case "$1" in
-    javascript) echo ".js" ;;
-    typescript) echo ".ts" ;;
-    python)     echo ".py" ;;
-    go)         echo ".go" ;;
-    rust)       echo ".rs" ;;
-    bash)       echo ".sh" ;;
-    java)       echo ".java" ;;
-  esac
-}
-
-# Detect fragments (incomplete code)
-detect_fragments() {
-  local content="$1"
-  local markers=0
-  # Check for ellipsis
-  echo "$content" | grep -qE '\.{3}|…' && markers=$((markers + 1))
-  # Check for TODO/FIXME
-  echo "$content" | grep -qiE '//\s*TODO|#\s*TODO|//\s*FIXME|#\s*FIXME' && markers=$((markers + 1))
-  # Check for pseudo-code markers
-  echo "$content" | grep -qiE '// \.\.\.|\.\.\. more|<!-- |pseudo|your code here|PLACEHOLDER' && markers=$((markers + 1))
-  echo "$markers"
-}
-
-# Parse imports from code
-parse_imports() {
-  local lang="$1" content="$2"
-  local imports=""
-  case "$lang" in
-    javascript|typescript)
-      imports=$(echo "$content" | grep -oE "(import .+ from ['\"][^'\"]+['\"]|require\(['\"][^'\"]+['\"]\))" 2>/dev/null || true)
-      ;;
-    python)
-      imports=$(echo "$content" | grep -oE "^(import [a-zA-Z0-9_.]+|from [a-zA-Z0-9_.]+ import)" 2>/dev/null || true)
-      ;;
-    go)
-      imports=$(echo "$content" | grep -oE '"[a-zA-Z0-9/._-]+"' 2>/dev/null | head -20 || true)
-      ;;
-    rust)
-      imports=$(echo "$content" | grep -oE "^use [a-zA-Z0-9_:]+;" 2>/dev/null || true)
-      ;;
-    java)
-      imports=$(echo "$content" | grep -oE "^import [a-zA-Z0-9_.]+;" 2>/dev/null || true)
-      ;;
-  esac
-  echo "$imports"
-}
-
-# Analyze import status (heuristic)
-analyze_import() {
-  local lang="$1" import_line="$2"
-  local module=""
-  local status="ok"
-
-  case "$lang" in
-    javascript|typescript)
-      # Extract module name
-      module=$(echo "$import_line" | grep -oE "['\"][^'\"]+['\"]" | tr -d "'" | tr -d '"')
-      # Flag relative imports (can't verify without filesystem context)
-      if echo "$module" | grep -qE '^\./|^\.\./'; then
-        status="unverifiable"
-      fi
-      # Flag known misspellings of popular packages
-      case "$module" in
-        expresss|axois|loadash|momment|reeact|angualr|reacr)
-          status="possible_misspelling"
-          ;;
-      esac
-      ;;
-    python)
-      module=$(echo "$import_line" | sed -E 's/^(import |from )([a-zA-Z0-9_.]+).*/\2/')
-      if echo "$module" | grep -qE '^\.|^\.\.'; then
-        status="unverifiable"
-      fi
-      ;;
-    go)
-      module=$(echo "$import_line" | tr -d '"')
-      ;;
-    rust)
-      module=$(echo "$import_line" | sed 's/^use //;s/;$//')
-      ;;
-    java)
-      module=$(echo "$import_line" | sed 's/^import //;s/;$//')
-      ;;
-  esac
-
-  # JSON-safe output
-  module=$(echo "$module" | sed 's/"/\\"/g')
-  echo "{\"module\":\"$module\",\"status\":\"$status\"}"
-}
 
 # ---- Main parsing logic ----
 
@@ -281,7 +122,9 @@ def syntax_check(lang, content, tmp_dir):
             r = subprocess.run(['node', '--check', tmp_path], capture_output=True, text=True, timeout=10)
             return (r.returncode == 0, r.stderr.strip())
         elif lang == 'python':
-            r = subprocess.run(['python3', '-c', f"import py_compile; py_compile.compile('{tmp_path}', doraise=True)"],
+            r = subprocess.run(['python3', '-c',
+                             'import sys,py_compile; py_compile.compile(sys.argv[1], doraise=True)',
+                             tmp_path],
                              capture_output=True, text=True, timeout=10)
             return (r.returncode == 0, r.stderr.strip())
         elif lang == 'go':
