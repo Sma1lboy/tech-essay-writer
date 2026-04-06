@@ -94,6 +94,13 @@ bash "$SKILL_DIR/scripts/intake-materials.sh" add-angle "$PROJECT_DIR" "<angle>"
 
 For URLs that need fetching, use WebFetch, then update the material with key_points.
 
+**Author profile check:**
+```bash
+bash "$SKILL_DIR/scripts/author-profile.sh" read
+```
+If the profile is empty or not initialized, ask: "Want to set up your author profile? (name, bio, social handles)"
+This data will be used in formatting and social media package generation.
+
 **Language detection:** After collecting materials, detect or ask the user's language preference.
 If the user's materials are primarily in Chinese, or the user communicates in Chinese, set language to `zh`. Otherwise default to `en`.
 ```bash
@@ -316,6 +323,21 @@ Platform output files:
 - `.essay-state/final-wechat.md` — WeChat公众号 inline-CSS HTML version (Chinese)
 - `.essay-state/final-juejin.md` — 掘金 Markdown version (Chinese)
 
+### Social Media Package (Enhanced)
+
+After formatting, dispatch the social package agent with author context:
+
+```bash
+SOCIAL_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-social-prompt)
+```
+
+Launch via Agent tool:
+```
+Agent(description="Social media package", prompt=SOCIAL_PROMPT)
+```
+
+The agent writes `.essay-state/social-package.json` with Twitter thread, LinkedIn post, 小红书 post, HN title, and author CTAs.
+
 Run publish readiness check:
 ```bash
 bash "$SKILL_DIR/scripts/publish-check.sh" "$PROJECT_DIR"
@@ -330,6 +352,7 @@ After user approves:
 ```bash
 bash "$SKILL_DIR/scripts/taste-memory.sh" update "$PROJECT_DIR"
 bash "$SKILL_DIR/scripts/pipeline-state.sh" complete "$PROJECT_DIR"
+bash "$SKILL_DIR/scripts/expertise-graph.sh" update "<topic>" "<tag1> <tag2>"
 ```
 
 After publishing, register the article for future cross-referencing:

@@ -12,6 +12,8 @@ Key patterns:
 - **Refinement loop**: challenge → fix → re-challenge (max 3 rounds)
 - **Taste memory**: persistent style preferences across sessions
 - **Cross-reference**: track published articles for internal linking
+- **Author profile**: persistent author identity + expertise areas
+- **Expertise graph**: topic authority tracking based on publishing history
 
 ## Directory Structure
 
@@ -25,6 +27,8 @@ scripts/
   build-agent-prompt.sh     # Generic prompt builder with context injection
   taste-memory.sh           # Persistent writing style preferences
   cross-reference.sh        # Published article registry
+  author-profile.sh        # Author identity management
+  expertise-graph.sh       # Topic authority tracking
   fetch-urls.sh             # URL content fetcher
   update-material.sh        # Update material with fetched content
 prompts/
@@ -39,6 +43,7 @@ prompts/
   refiner.md                # Refinement agent
   formatter-internal.md     # Internal format adapter
   formatter-external.md     # External format adapter + social
+  social-package.md         # Enhanced social media package agent
   formatter-medium.md       # Medium platform adapter
   formatter-devto.md        # dev.to platform adapter
   formatter-hashnode.md     # Hashnode platform adapter
@@ -54,7 +59,8 @@ tests/
   test_pipeline.sh          # Unit tests for core scripts (29 tests)
   test_orchestrate.sh       # Integration tests for orchestrator (54 tests)
   test_e2e_dryrun.sh        # E2E dry run simulation (53 tests)
-  run-all.sh                # Test runner (136 total tests)
+  test_branding.sh          # Personal branding engine tests
+  run-all.sh                # Test runner
 ```
 
 ## Runtime State

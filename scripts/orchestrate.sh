@@ -18,6 +18,7 @@ Commands:
   build-review-prompts  Build 5 parallel review agent prompts
   build-refiner-prompt  Build refiner agent prompt (with round number)
   build-format-prompts  Build formatter prompts (internal|external|medium|devto|hashnode|wechat|juejin)
+  build-social-prompt   Build social media package agent prompt
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
 EOF
@@ -520,6 +521,12 @@ cmd_build_format_prompts() {
   local taste
   taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
 
+  # Get author profile data
+  local author_profile
+  author_profile=$(bash "$SKILL_DIR/scripts/author-profile.sh" read 2>/dev/null || echo "")
+  local author_bio
+  author_bio=$(bash "$SKILL_DIR/scripts/author-profile.sh" get-bio 2>/dev/null || echo "")
+
   # Get cross-references for the topic
   local xrefs=""
   local topic
@@ -553,6 +560,12 @@ ${audience_review:-"{}"}
 ${taste:-"{}"}
 \`\`\`
 
+## Author Profile
+
+${author_profile:-"(no author profile configured)"}
+
+Author bio line: ${author_bio:-"(not set)"}
+
 ## Previously Published Articles (for cross-referencing)
 
 ${xrefs:-"(no published articles to cross-reference)"}
@@ -562,7 +575,62 @@ $(build_language_directive)
 
 Write the ${format} version to \`.essay-state/final-${format}.md\`
 Where relevant, cross-reference the author's previously published articles listed above.
+Include author bio/expertise where the format supports it.
 $([ "$format" = "external" ] && echo "Also write social media package to \`.essay-state/social-package.json\`")
+PROMPT_END
+}
+
+cmd_build_social_prompt() {
+  local draft_path
+  draft_path=$(latest_draft)
+  local draft_content=""
+  if [ -n "$draft_path" ]; then
+    draft_content=$(cat "$draft_path")
+  fi
+
+  # Author profile
+  local author_profile_json
+  author_profile_json=$(bash "$SKILL_DIR/scripts/author-profile.sh" read 2>/dev/null || echo "(no author profile)")
+
+  # Expertise graph
+  local expertise_graph_json
+  expertise_graph_json=$(bash "$SKILL_DIR/scripts/expertise-graph.sh" read 2>/dev/null || echo "{}")
+
+  # SEO review
+  local seo_review
+  seo_review=$(read_if_exists "$STATE_DIR/review-seo.json")
+
+  cat << PROMPT_END
+$(read_prompt "social-package.md")
+
+## Refined Draft
+
+${draft_content:-"(no draft available)"}
+
+## Author Profile Data
+
+${author_profile_json}
+
+## Expertise Graph Data
+
+\`\`\`json
+${expertise_graph_json}
+\`\`\`
+
+## SEO Review Data
+
+\`\`\`json
+${seo_review:-"{}"}
+\`\`\`
+$(build_language_directive)
+
+## Instructions
+
+1. Read the article draft and understand its key points, unique angle, and target audience
+2. Generate the complete social media package following the format specification above
+3. Use the author profile to write authentic CTAs with correct handles
+4. Use the expertise graph to position the author's authority on this topic
+5. Write the package to \`.essay-state/social-package.json\`
 PROMPT_END
 }
 
@@ -608,6 +676,7 @@ case "$CMD" in
   build-review-prompts) cmd_build_review_prompts "$@" ;;
   build-refiner-prompt) cmd_build_refiner_prompt "$@" ;;
   build-format-prompts) cmd_build_format_prompts "$@" ;;
+  build-social-prompt) cmd_build_social_prompt ;;
   list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
   *) usage; exit 1 ;;
