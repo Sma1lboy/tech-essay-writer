@@ -1019,75 +1019,100 @@ cmd_retry_stage() {
   local stage="${1:?stage required}"
   local valid_stages="intake research outline draft review refinement polish"
   if ! echo "$valid_stages" | grep -qw "$stage"; then
-    echo "ERROR: Invalid stage '$stage'. Valid: $valid_stages" >&2
+    echo "ERROR: Cannot retry stage '$stage'. Valid: $valid_stages" >&2
     return 1
   fi
 
-  # Map stage to its output artifacts for cleanup
-  local artifacts_to_clear=()
+  # Map target stage to preceding stage for checkpoint lookup
+  local preceding=""
+  case "$stage" in
+    research) preceding="intake" ;;
+    outline) preceding="research" ;;
+    draft) preceding="outline" ;;
+    review) preceding="draft" ;;
+    refinement) preceding="review" ;;
+    polish) preceding="refinement" ;;
+  esac
+
+  # Try to rollback to the preceding stage's checkpoint
+  if [ -n "$preceding" ]; then
+    local found_ckpt
+    found_ckpt=$(python3 -c "
+import os, sys
+
+ckpt_base = sys.argv[1]
+prefix = sys.argv[2]
+
+if not os.path.isdir(ckpt_base):
+    sys.exit(0)
+
+matches = []
+for name in os.listdir(ckpt_base):
+    full = os.path.join(ckpt_base, name)
+    if not os.path.isdir(full) or name.startswith('.'):
+        continue
+    parts = name.rsplit('-', 1)
+    label = parts[0] if len(parts) == 2 else name
+    ts = parts[1] if len(parts) == 2 else ''
+    if label == prefix:
+        matches.append((name, ts))
+
+matches.sort(key=lambda x: x[1])
+if matches:
+    print(matches[-1][0])
+" "$STATE_DIR/checkpoints" "$preceding" 2>/dev/null || echo "")
+
+    if [ -n "$found_ckpt" ]; then
+      echo "Rolling back to checkpoint: $found_ckpt"
+      bash "$SKILL_DIR/scripts/checkpoint.sh" rollback "$PROJECT_DIR" "$found_ckpt"
+    else
+      echo "No checkpoint found for '$preceding'. Resetting stage only."
+    fi
+  fi
+
+  # Set stage directly (use set-field to avoid triggering another auto-snapshot)
+  bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" "stage" "$stage" >/dev/null
+
+  # Clear artifacts for the target stage
   case "$stage" in
     intake)
-      artifacts_to_clear=("materials.json")
+      rm -f "$STATE_DIR/materials.json"
       ;;
     research)
-      artifacts_to_clear=("research-synthesis.json")
+      rm -f "$STATE_DIR/research-synthesis.json"
       ;;
     outline)
-      artifacts_to_clear=("outline-A.json" "outline-B.json" "outline-C.json" "outline-critique.json")
+      rm -f "$STATE_DIR/outline-A.json" "$STATE_DIR/outline-B.json" "$STATE_DIR/outline-C.json"
+      rm -f "$STATE_DIR/outline-critique.json"
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" "outline_variant" "null" >/dev/null
       ;;
     draft)
-      # Clear all draft versions
-      for f in "$STATE_DIR"/draft-v*.md; do
-        [ -f "$f" ] && artifacts_to_clear+=("$(basename "$f")")
-      done
+      rm -f "$STATE_DIR"/draft-v*.md
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" "draft_version" "0" >/dev/null
       ;;
     review)
-      # Clear all review files and panel summary
-      for f in "$STATE_DIR"/review-*.json; do
-        [ -f "$f" ] && artifacts_to_clear+=("$(basename "$f")")
-      done
+      rm -f "$STATE_DIR"/review-*.json
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" "reviews" "{}" >/dev/null
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" "review_panel_complete" "false" >/dev/null
       ;;
     refinement)
-      # Clear refinement change logs (keep draft versions)
-      for f in "$STATE_DIR"/refinement-*-changes.json; do
-        [ -f "$f" ] && artifacts_to_clear+=("$(basename "$f")")
+      rm -f "$STATE_DIR"/refinement-*-changes.json
+      # Remove subsequent draft versions (keep v1)
+      for i in $(seq 10 -1 2); do
+        rm -f "$STATE_DIR/draft-v${i}.md"
       done
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" "refinement_round" "0" >/dev/null
       ;;
     polish)
-      # Clear final outputs
-      for f in "$STATE_DIR"/final-*.md "$STATE_DIR"/social-package.json; do
-        [ -f "$f" ] && artifacts_to_clear+=("$(basename "$f")")
-      done
+      rm -f "$STATE_DIR"/final-*.md
+      rm -f "$STATE_DIR/social-package.json"
+      rm -f "$STATE_DIR/influence-score.json"
+      rm -f "$STATE_DIR/seo-metadata.json"
+      rm -f "$STATE_DIR/diagram-suggestions.json"
       ;;
   esac
 
-  # Remove artifacts
-  local removed=0
-  for artifact in "${artifacts_to_clear[@]}"; do
-    if [ -f "$STATE_DIR/$artifact" ]; then
-      rm "$STATE_DIR/$artifact"
-      removed=$((removed + 1))
-    fi
-  done
-
-  # Reset stage in pipeline state
-  bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" "$stage"
-
-  # Reset stage-specific fields
-  case "$stage" in
-    outline)
-      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" outline_variant "null"
-      ;;
-    review)
-      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" reviews "{}"
-      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" review_panel_complete "false"
-      ;;
-    refinement)
-      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" refinement_round "0"
-      ;;
-  esac
-
-  echo "Retry: stage reset to '$stage', cleared $removed artifact(s)"
+  echo "Retry: stage reset to '$stage', ready for re-execution."
 }
 
 cmd_resume() {

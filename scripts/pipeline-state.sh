@@ -124,10 +124,14 @@ cmd_set_stage() {
     echo "ERROR: Invalid stage '$stage'. Valid: $valid_stages" >&2
     return 1
   fi
-  # Auto-save checkpoint before stage transition
-  bash "$(dirname "${BASH_SOURCE[0]}")/checkpoint.sh" auto-save "$project" 2>/dev/null || true
   local state
   state=$(read_state "$project")
+  # Auto-snapshot current stage before transition (non-fatal)
+  local current_stage
+  current_stage=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('stage',''))" "$state" 2>/dev/null || echo "")
+  if [ -n "$current_stage" ]; then
+    bash "$(dirname "${BASH_SOURCE[0]}")/checkpoint.sh" snapshot "$project" "$current_stage" 2>/dev/null || true
+  fi
   local now
   now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   state=$(python3 -c "

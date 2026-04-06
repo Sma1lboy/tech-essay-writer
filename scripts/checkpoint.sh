@@ -1,68 +1,22 @@
 #!/usr/bin/env bash
 # State checkpoint and recovery system for the essay writing pipeline
-# Snapshots .essay-state/ for save/restore across pipeline stages
+# Snapshots .essay-state/ before each stage transition for rollback/retry
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_DIR=".essay-state"
 CHECKPOINT_DIR="checkpoints"
-INDEX_FILE="index.json"
 
 usage() {
   cat <<'EOF'
 Usage: checkpoint.sh <command> <project_dir> [args...]
 
 Commands:
-  save <project_dir> [label]       Snapshot current .essay-state/
-  list <project_dir>               List all checkpoints
-  restore <project_dir> <id>       Restore a checkpoint
-  delete <project_dir> <id>        Delete a checkpoint
-  auto-save <project_dir>          Auto-save with stage name as label
+  snapshot <project_dir> [label]          Snapshot .essay-state/ (label defaults to current stage)
+  list <project_dir>                      List all checkpoints
+  rollback <project_dir> <checkpoint_id>  Restore state from a checkpoint
+  latest <project_dir>                    Show most recent checkpoint
+  clean <project_dir> [--keep N]          Remove old checkpoints, keeping N most recent (default 5)
 EOF
-}
-
-ensure_checkpoint_dir() {
-  local project="$1"
-  mkdir -p "$project/$STATE_DIR/$CHECKPOINT_DIR"
-}
-
-index_file() {
-  echo "$1/$STATE_DIR/$CHECKPOINT_DIR/$INDEX_FILE"
-}
-
-read_index() {
-  local idx
-  idx="$(index_file "$1")"
-  if [ -f "$idx" ]; then
-    cat "$idx"
-  else
-    echo '[]'
-  fi
-}
-
-write_index() {
-  local project="$1" json_str="$2"
-  local idx
-  idx="$(index_file "$project")"
-  local tmp="${idx}.tmp.$$"
-  python3 -c "
-import json, sys, os
-d = json.loads(sys.argv[1])
-tmp = sys.argv[2]
-target = sys.argv[3]
-with open(tmp, 'w') as f:
-    json.dump(d, f, indent=2)
-os.rename(tmp, target)
-" "$json_str" "$tmp" "$idx"
-}
-
-generate_id() {
-  python3 -c "
-import time, random, string
-ts = int(time.time())
-suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-print(f'ckpt-{ts}-{suffix}')
-"
 }
 
 get_current_stage() {
@@ -75,190 +29,226 @@ get_current_stage() {
   fi
 }
 
-count_state_files() {
-  local project="$1"
-  local count=0
-  for f in "$project/$STATE_DIR"/*.json "$project/$STATE_DIR"/*.md; do
-    if [ -f "$f" ]; then
-      count=$((count + 1))
-    fi
-  done
-  echo "$count"
-}
-
-cmd_save() {
+cmd_snapshot() {
   local project="$1"
   local label="${2:-}"
 
-  # Verify .essay-state exists and has files
   if [ ! -d "$project/$STATE_DIR" ]; then
-    echo "ERROR: No .essay-state/ directory found in $project" >&2
+    echo "ERROR: No $STATE_DIR directory found in $project" >&2
     return 1
   fi
 
-  # Collect files to archive (*.json and *.md, excluding checkpoints dir)
-  local files_to_archive=()
-  for f in "$project/$STATE_DIR"/*.json "$project/$STATE_DIR"/*.md; do
+  # Default label to current stage
+  if [ -z "$label" ]; then
+    label=$(get_current_stage "$project")
+  fi
+
+  local timestamp
+  timestamp=$(date -u +"%Y%m%dT%H%M%S")
+  local checkpoint_id="${label}-${timestamp}"
+  local ckpt_base="$project/$STATE_DIR/$CHECKPOINT_DIR"
+  local ckpt_dir="$ckpt_base/$checkpoint_id"
+  local tmp_dir="$ckpt_base/.tmp-${checkpoint_id}.$$"
+
+  mkdir -p "$ckpt_base"
+
+  # Copy state files to temp dir (atomic: copy then rename)
+  mkdir -p "$tmp_dir"
+  local file_count=0
+  for f in "$project/$STATE_DIR"/*; do
     if [ -f "$f" ]; then
-      local basename
-      basename=$(basename "$f")
-      files_to_archive+=("$basename")
+      cp "$f" "$tmp_dir/"
+      file_count=$((file_count + 1))
     fi
   done
 
-  if [ ${#files_to_archive[@]} -eq 0 ]; then
-    echo "ERROR: No .json or .md files found in .essay-state/" >&2
+  if [ "$file_count" -eq 0 ]; then
+    rm -rf "$tmp_dir"
+    echo "ERROR: No files found in $STATE_DIR to snapshot" >&2
     return 1
   fi
 
-  ensure_checkpoint_dir "$project"
+  # Atomic rename
+  mv "$tmp_dir" "$ckpt_dir"
 
-  local ckpt_id
-  ckpt_id=$(generate_id)
-  local stage
-  stage=$(get_current_stage "$project")
-  local now
-  now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-  local archive="$project/$STATE_DIR/$CHECKPOINT_DIR/${ckpt_id}.tar.gz"
-  local files_count=${#files_to_archive[@]}
-
-  # If no label provided, use the checkpoint id
-  if [ -z "$label" ]; then
-    label="$ckpt_id"
-  fi
-
-  # Create tar.gz from .essay-state/ dir, excluding checkpoints/
-  tar -czf "$archive" -C "$project/$STATE_DIR" "${files_to_archive[@]}"
-
-  # Update index
-  local index
-  index=$(read_index "$project")
-  index=$(python3 -c "
-import json, sys
-entries = json.loads(sys.argv[1])
-entries.append({
-    'id': sys.argv[2],
-    'label': sys.argv[3],
-    'stage': sys.argv[4],
-    'timestamp': sys.argv[5],
-    'files_count': int(sys.argv[6])
-})
-print(json.dumps(entries))
-" "$index" "$ckpt_id" "$label" "$stage" "$now" "$files_count")
-  write_index "$project" "$index"
-
-  echo "Checkpoint saved: $ckpt_id (label: $label, stage: $stage, files: $files_count)"
+  echo "Checkpoint: $checkpoint_id ($file_count files)"
 }
 
 cmd_list() {
   local project="$1"
-  local index
-  index=$(read_index "$project")
+  local ckpt_base="$project/$STATE_DIR/$CHECKPOINT_DIR"
+
+  if [ ! -d "$ckpt_base" ]; then
+    echo "No checkpoints found."
+    return
+  fi
+
   python3 -c "
-import json, sys
-entries = json.loads(sys.argv[1])
+import os, sys, json
+
+ckpt_base = sys.argv[1]
+entries = []
+for name in os.listdir(ckpt_base):
+    full = os.path.join(ckpt_base, name)
+    if not os.path.isdir(full) or name.startswith('.'):
+        continue
+    # Extract label and timestamp from dirname: <label>-<YYYYMMDDTHHmmss>
+    parts = name.rsplit('-', 1)
+    label = parts[0] if len(parts) == 2 else name
+    ts = parts[1] if len(parts) == 2 else ''
+    # Read stage from checkpoint's pipeline-state.json
+    stage = 'unknown'
+    ps = os.path.join(full, 'pipeline-state.json')
+    if os.path.exists(ps):
+        try:
+            with open(ps) as f:
+                stage = json.load(f).get('stage', 'unknown')
+        except:
+            pass
+    files = len([f for f in os.listdir(full) if os.path.isfile(os.path.join(full, f))])
+    entries.append((name, stage, label, ts, files))
+
+# Sort by timestamp
+entries.sort(key=lambda x: x[3])
+
 if not entries:
     print('No checkpoints found.')
-    sys.exit(0)
-print(f'{len(entries)} checkpoint(s):')
-for e in entries:
-    print(f\"  {e['id']}  [{e['stage']}]  {e['label']}  ({e['timestamp']})  {e['files_count']} files\")
-" "$index"
+else:
+    print(f'{len(entries)} checkpoint(s):')
+    for name, stage, label, ts, files in entries:
+        print(f'  {name}  [{stage}]  label:{label}  ({ts})  {files} files')
+" "$ckpt_base"
 }
 
-cmd_restore() {
-  local project="$1" ckpt_id="$2"
-
-  ensure_checkpoint_dir "$project"
-
-  local archive="$project/$STATE_DIR/$CHECKPOINT_DIR/${ckpt_id}.tar.gz"
-  if [ ! -f "$archive" ]; then
-    echo "ERROR: Checkpoint '$ckpt_id' not found" >&2
-    return 1
-  fi
-
-  # Verify the checkpoint id exists in the index
-  local index
-  index=$(read_index "$project")
-  local found
-  found=$(python3 -c "
-import json, sys
-entries = json.loads(sys.argv[1])
-ckpt_id = sys.argv[2]
-found = any(e['id'] == ckpt_id for e in entries)
-print('yes' if found else 'no')
-" "$index" "$ckpt_id")
-
-  if [ "$found" != "yes" ]; then
-    echo "ERROR: Checkpoint '$ckpt_id' not found in index" >&2
-    return 1
-  fi
-
-  # Extract tar.gz back into .essay-state/, overwriting current files
-  tar -xzf "$archive" -C "$project/$STATE_DIR"
-
-  local label
-  label=$(python3 -c "
-import json, sys
-entries = json.loads(sys.argv[1])
-ckpt_id = sys.argv[2]
-for e in entries:
-    if e['id'] == ckpt_id:
-        print(e['label'])
-        break
-" "$index" "$ckpt_id")
-
-  echo "Restored checkpoint: $ckpt_id (label: $label)"
-}
-
-cmd_delete() {
-  local project="$1" ckpt_id="$2"
-
-  ensure_checkpoint_dir "$project"
-
-  local archive="$project/$STATE_DIR/$CHECKPOINT_DIR/${ckpt_id}.tar.gz"
-  local index
-  index=$(read_index "$project")
-
-  # Verify checkpoint exists in index
-  local found
-  found=$(python3 -c "
-import json, sys
-entries = json.loads(sys.argv[1])
-ckpt_id = sys.argv[2]
-found = any(e['id'] == ckpt_id for e in entries)
-print('yes' if found else 'no')
-" "$index" "$ckpt_id")
-
-  if [ "$found" != "yes" ]; then
-    echo "ERROR: Checkpoint '$ckpt_id' not found" >&2
-    return 1
-  fi
-
-  # Remove archive file
-  if [ -f "$archive" ]; then
-    rm "$archive"
-  fi
-
-  # Remove from index
-  index=$(python3 -c "
-import json, sys
-entries = json.loads(sys.argv[1])
-ckpt_id = sys.argv[2]
-entries = [e for e in entries if e['id'] != ckpt_id]
-print(json.dumps(entries))
-" "$index" "$ckpt_id")
-  write_index "$project" "$index"
-
-  echo "Deleted checkpoint: $ckpt_id"
-}
-
-cmd_auto_save() {
+cmd_rollback() {
   local project="$1"
-  local stage
-  stage=$(get_current_stage "$project")
-  local label="pre-${stage}"
-  cmd_save "$project" "$label"
+  local checkpoint_id="${2:-}"
+
+  if [ -z "$checkpoint_id" ]; then
+    echo "ERROR: checkpoint_id required" >&2
+    return 1
+  fi
+
+  local ckpt_dir="$project/$STATE_DIR/$CHECKPOINT_DIR/$checkpoint_id"
+
+  if [ ! -d "$ckpt_dir" ]; then
+    echo "ERROR: Checkpoint '$checkpoint_id' not found" >&2
+    return 1
+  fi
+
+  # Remove current state files (preserve directories like checkpoints/)
+  for f in "$project/$STATE_DIR"/*; do
+    if [ -f "$f" ]; then
+      rm "$f"
+    fi
+  done
+
+  # Copy checkpoint files back to .essay-state/
+  local restored=0
+  for f in "$ckpt_dir"/*; do
+    if [ -f "$f" ]; then
+      cp "$f" "$project/$STATE_DIR/"
+      restored=$((restored + 1))
+    fi
+  done
+
+  echo "Rolled back to: $checkpoint_id ($restored files restored)"
+}
+
+cmd_latest() {
+  local project="$1"
+  local ckpt_base="$project/$STATE_DIR/$CHECKPOINT_DIR"
+
+  if [ ! -d "$ckpt_base" ]; then
+    echo "No checkpoints found."
+    return 1
+  fi
+
+  python3 -c "
+import os, sys, json
+
+ckpt_base = sys.argv[1]
+entries = []
+for name in os.listdir(ckpt_base):
+    full = os.path.join(ckpt_base, name)
+    if not os.path.isdir(full) or name.startswith('.'):
+        continue
+    parts = name.rsplit('-', 1)
+    ts = parts[1] if len(parts) == 2 else ''
+    entries.append((name, ts))
+
+entries.sort(key=lambda x: x[1])
+
+if not entries:
+    print('No checkpoints found.')
+    sys.exit(1)
+
+latest = entries[-1][0]
+full = os.path.join(ckpt_base, latest)
+parts = latest.rsplit('-', 1)
+label = parts[0] if len(parts) == 2 else latest
+ts = parts[1] if len(parts) == 2 else ''
+
+stage = 'unknown'
+ps = os.path.join(full, 'pipeline-state.json')
+if os.path.exists(ps):
+    try:
+        with open(ps) as f:
+            stage = json.load(f).get('stage', 'unknown')
+    except:
+        pass
+files = len([f for f in os.listdir(full) if os.path.isfile(os.path.join(full, f))])
+print(f'{latest}  [{stage}]  label:{label}  ({ts})  {files} files')
+" "$ckpt_base"
+}
+
+cmd_clean() {
+  local project="$1"
+  shift
+  local keep=5
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --keep) keep="${2:-5}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  local ckpt_base="$project/$STATE_DIR/$CHECKPOINT_DIR"
+
+  if [ ! -d "$ckpt_base" ]; then
+    echo "No checkpoints to clean."
+    return
+  fi
+
+  python3 -c "
+import os, sys, shutil
+
+ckpt_base = sys.argv[1]
+keep = int(sys.argv[2])
+
+entries = []
+for name in os.listdir(ckpt_base):
+    full = os.path.join(ckpt_base, name)
+    if not os.path.isdir(full) or name.startswith('.'):
+        continue
+    parts = name.rsplit('-', 1)
+    ts = parts[1] if len(parts) == 2 else ''
+    entries.append((name, ts))
+
+entries.sort(key=lambda x: x[1])
+total = len(entries)
+
+if total <= keep:
+    print(f'Only {total} checkpoint(s), keeping all (threshold: {keep}).')
+    sys.exit(0)
+
+to_remove = entries[:total - keep]
+for name, _ in to_remove:
+    shutil.rmtree(os.path.join(ckpt_base, name))
+
+print(f'Cleaned {len(to_remove)} checkpoint(s), kept {keep}.')
+" "$ckpt_base" "$keep"
 }
 
 # Main dispatch
@@ -273,10 +263,10 @@ if [ -z "$CMD" ] || [ -z "$PROJECT" ]; then
 fi
 
 case "$CMD" in
-  save) cmd_save "$PROJECT" "${1:-}" ;;
+  snapshot) cmd_snapshot "$PROJECT" "${1:-}" ;;
   list) cmd_list "$PROJECT" ;;
-  restore) cmd_restore "$PROJECT" "${1:-}" ;;
-  delete) cmd_delete "$PROJECT" "${1:-}" ;;
-  auto-save) cmd_auto_save "$PROJECT" ;;
+  rollback) cmd_rollback "$PROJECT" "${1:-}" ;;
+  latest) cmd_latest "$PROJECT" ;;
+  clean) cmd_clean "$PROJECT" "$@" ;;
   *) usage; exit 1 ;;
 esac

@@ -52,6 +52,7 @@ scripts/
   analytics-feedback.sh     # Analytics feedback loop (metrics tracking, taste memory integration)
   progress-display.sh       # Rich pipeline progress visualization (stages, %, quality, artifacts)
   publishing-guide.sh       # Per-platform publishing workflow guides with SEO tips
+  checkpoint.sh             # State checkpoint system (save/restore/list/delete snapshots)
   install.sh                # Skill installer (symlink components into ~/.claude/skills/)
   fetch-urls.sh             # URL content fetcher
   update-material.sh        # Update material with fetched content
@@ -98,6 +99,7 @@ tests/
   test_series_analytics.sh  # Series manager + analytics feedback tests
   test_config.sh            # Configuration system tests
   test_progress_publishing.sh  # Progress display + publishing guide tests
+  test_checkpoint.sh        # State checkpoint and recovery tests
   test_install.sh           # Install/uninstall script tests
   run-all.sh                # Test runner
 ```
@@ -126,6 +128,9 @@ During execution, `.essay-state/` contains:
 - `influence-score.json` — predicted influence/reach potential
 - `seo-metadata.json` — OpenGraph, meta tags, JSON-LD, keyword density
 - `diagram-suggestions.json` — suggested diagrams/visuals with Mermaid syntax
+- `checkpoints/` — automatic state snapshots before each stage transition
+  - `checkpoints/index.json` — checkpoint registry (id, label, stage, timestamp)
+  - `checkpoints/<id>.tar.gz` — compressed state snapshots
 
 Persistent data at `~/.tech-essay-writer/`:
 - `series.json` — article series definitions (reading order, narrative arc)
