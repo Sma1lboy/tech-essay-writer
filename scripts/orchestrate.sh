@@ -25,6 +25,8 @@ Commands:
   build-seo-metadata    Generate SEO metadata from article + state data (no agent needed)
   build-code-validation Validate code examples in the latest draft
   build-diagram-suggestions Suggest diagrams/images for the latest draft
+  build-readability-report  Compute readability metrics (FK grade, passive voice, complexity)
+  build-word-analysis       Word frequency, overuse, jargon density, AI pattern detection
   build-series-context  Build series context for injection into writer/formatter prompts
   build-analytics-insights Output performance insights from analytics for prompt injection
   build-analytics-summary Show performance trends and analytics summary
@@ -46,6 +48,110 @@ CMD="${3:?command required}"
 shift 3
 
 STATE_DIR="$PROJECT_DIR/.essay-state"
+
+# ─── Caching layer ───────────────────────────────────────────────────────────
+# Frequently-read files are cached in shell variables on first access.
+# This avoids re-reading the same file (and re-spawning python3) across
+# multiple helper calls within a single orchestrate.sh invocation.
+
+_CACHE_TASTE=""
+_CACHE_TASTE_LOADED=false
+
+_CACHE_LANG=""
+_CACHE_LANG_LOADED=false
+
+_CACHE_SERIES_ID=""
+_CACHE_SERIES_ID_LOADED=false
+
+_CACHE_SERIES_CTX=""
+_CACHE_SERIES_CTX_LOADED=false
+
+_CACHE_RESEARCH=""
+_CACHE_RESEARCH_LOADED=false
+
+_CACHE_MATERIALS=""
+_CACHE_MATERIALS_LOADED=false
+
+_CACHE_PIPELINE_TOPIC=""
+_CACHE_PIPELINE_TOPIC_LOADED=false
+
+# Cached taste memory reader — avoids re-reading ~/.tech-essay-writer/taste-memory.json
+cached_taste_memory() {
+  if [ "$_CACHE_TASTE_LOADED" = false ]; then
+    _CACHE_TASTE=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+    _CACHE_TASTE_LOADED=true
+  fi
+  echo "$_CACHE_TASTE"
+}
+
+# Cached language from pipeline state — avoids re-spawning python3 for every prompt
+cached_language() {
+  if [ "$_CACHE_LANG_LOADED" = false ]; then
+    _CACHE_LANG="en"
+    if [ -f "$STATE_DIR/pipeline-state.json" ]; then
+      _CACHE_LANG=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('language','en'))" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "en")
+    fi
+    _CACHE_LANG_LOADED=true
+  fi
+  echo "$_CACHE_LANG"
+}
+
+# Cached series_id from pipeline state
+cached_series_id() {
+  if [ "$_CACHE_SERIES_ID_LOADED" = false ]; then
+    _CACHE_SERIES_ID=""
+    if [ -f "$STATE_DIR/pipeline-state.json" ]; then
+      _CACHE_SERIES_ID=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('series_id','') or '')" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
+    fi
+    _CACHE_SERIES_ID_LOADED=true
+  fi
+  echo "$_CACHE_SERIES_ID"
+}
+
+# Cached series context (calls series-manager.sh at most once)
+cached_series_context() {
+  if [ "$_CACHE_SERIES_CTX_LOADED" = false ]; then
+    local sid
+    sid=$(cached_series_id)
+    if [ -n "$sid" ]; then
+      _CACHE_SERIES_CTX=$(bash "$SKILL_DIR/scripts/series-manager.sh" context "$sid" 2>/dev/null || echo "")
+    fi
+    _CACHE_SERIES_CTX_LOADED=true
+  fi
+  echo "$_CACHE_SERIES_CTX"
+}
+
+# Cached research synthesis reader
+cached_research() {
+  if [ "$_CACHE_RESEARCH_LOADED" = false ]; then
+    _CACHE_RESEARCH=$(read_if_exists "$STATE_DIR/research-synthesis.json")
+    _CACHE_RESEARCH_LOADED=true
+  fi
+  echo "$_CACHE_RESEARCH"
+}
+
+# Cached materials reader
+cached_materials() {
+  if [ "$_CACHE_MATERIALS_LOADED" = false ]; then
+    _CACHE_MATERIALS=$(read_if_exists "$STATE_DIR/materials.json")
+    _CACHE_MATERIALS_LOADED=true
+  fi
+  echo "$_CACHE_MATERIALS"
+}
+
+# Cached pipeline topic
+cached_pipeline_topic() {
+  if [ "$_CACHE_PIPELINE_TOPIC_LOADED" = false ]; then
+    _CACHE_PIPELINE_TOPIC=""
+    if [ -f "$STATE_DIR/pipeline-state.json" ]; then
+      _CACHE_PIPELINE_TOPIC=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('topic',''))" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
+    fi
+    _CACHE_PIPELINE_TOPIC_LOADED=true
+  fi
+  echo "$_CACHE_PIPELINE_TOPIC"
+}
+
+# ─── Core helpers ────────────────────────────────────────────────────────────
 
 # Helper: read a prompt template and inline context
 read_prompt() {
@@ -89,12 +195,10 @@ latest_draft_version() {
   echo "0"
 }
 
-# Helper: build language directive from pipeline state
+# Helper: build language directive from pipeline state (cached)
 build_language_directive() {
-  local lang="en"
-  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    lang=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('language','en'))" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "en")
-  fi
+  local lang
+  lang=$(cached_language)
   if [ "$lang" = "zh" ]; then
     cat <<'LANG_END'
 
@@ -112,17 +216,12 @@ LANG_END
   fi
 }
 
-# Helper: get series context section if series_id is set in pipeline state
+# Helper: get series context section if series_id is set in pipeline state (cached)
 get_series_context_section() {
-  local series_id=""
-  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    series_id=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('series_id','') or '')" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
-  fi
-  if [ -n "$series_id" ]; then
-    local ctx
-    ctx=$(bash "$SKILL_DIR/scripts/series-manager.sh" context "$series_id" 2>/dev/null || echo "")
-    if [ -n "$ctx" ]; then
-      cat << SERIES_END
+  local ctx
+  ctx=$(cached_series_context)
+  if [ -n "$ctx" ]; then
+    cat << SERIES_END
 
 ## Series Context
 
@@ -132,21 +231,15 @@ This article is part of a series. Consider the series arc and previous articles 
 ${ctx}
 \`\`\`
 SERIES_END
-    fi
   fi
 }
 
-# Helper: get series navigation for formatter prompts
+# Helper: get series navigation for formatter prompts (cached)
 get_series_nav_section() {
-  local series_id=""
-  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    series_id=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('series_id','') or '')" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
-  fi
-  if [ -n "$series_id" ]; then
-    local ctx
-    ctx=$(bash "$SKILL_DIR/scripts/series-manager.sh" context "$series_id" 2>/dev/null || echo "")
-    if [ -n "$ctx" ]; then
-      cat << NAV_END
+  local ctx
+  ctx=$(cached_series_context)
+  if [ -n "$ctx" ]; then
+    cat << NAV_END
 
 ## Series Navigation
 
@@ -156,7 +249,6 @@ Include series navigation links (previous/next article) where the format support
 ${ctx}
 \`\`\`
 NAV_END
-    fi
   fi
 }
 
@@ -283,9 +375,9 @@ if d.get('potential_angles'):
 
 cmd_build_research_prompt() {
   local materials
-  materials=$(read_if_exists "$STATE_DIR/materials.json")
+  materials=$(cached_materials)
   local taste
-  taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+  taste=$(cached_taste_memory)
 
   cat << PROMPT_END
 $(read_prompt "researcher.md")
@@ -315,11 +407,11 @@ PROMPT_END
 cmd_build_outline_prompts() {
   local variant="${1:?variant A|B|C required}"
   local research
-  research=$(read_if_exists "$STATE_DIR/research-synthesis.json")
+  research=$(cached_research)
   local materials
-  materials=$(read_if_exists "$STATE_DIR/materials.json")
+  materials=$(cached_materials)
   local taste
-  taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+  taste=$(cached_taste_memory)
 
   # Map variant to article template
   local template_name=""
@@ -380,9 +472,9 @@ cmd_build_outline_critique_prompt() {
   outline_b=$(read_if_exists "$STATE_DIR/outline-B.json")
   outline_c=$(read_if_exists "$STATE_DIR/outline-C.json")
   local research
-  research=$(read_if_exists "$STATE_DIR/research-synthesis.json")
+  research=$(cached_research)
   local taste
-  taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+  taste=$(cached_taste_memory)
 
   cat << PROMPT_END
 $(read_prompt "outline-critic.md")
@@ -445,11 +537,11 @@ cmd_build_writer_prompt() {
   fi
 
   local research
-  research=$(read_if_exists "$STATE_DIR/research-synthesis.json")
+  research=$(cached_research)
   local materials
-  materials=$(read_if_exists "$STATE_DIR/materials.json")
+  materials=$(cached_materials)
   local taste
-  taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+  taste=$(cached_taste_memory)
 
   cat << PROMPT_END
 $(read_prompt "writer.md")
@@ -525,7 +617,7 @@ cmd_build_review_prompts() {
   fi
 
   local research
-  research=$(read_if_exists "$STATE_DIR/research-synthesis.json")
+  research=$(cached_research)
 
   cat << PROMPT_END
 $(read_prompt "$template")
@@ -644,7 +736,7 @@ cmd_build_format_prompts() {
   local audience_review
   audience_review=$(read_if_exists "$STATE_DIR/review-audience.json")
   local taste
-  taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+  taste=$(cached_taste_memory)
 
   # Get author profile data
   local author_profile
@@ -655,7 +747,7 @@ cmd_build_format_prompts() {
   # Get cross-references for the topic
   local xrefs=""
   local topic
-  topic=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('topic',''))" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
+  topic=$(cached_pipeline_topic)
   if [ -n "$topic" ] && [ -f "$HOME/.tech-essay-writer/published-articles.json" ]; then
     xrefs=$(bash "$SKILL_DIR/scripts/cross-reference.sh" suggest "$topic" 2>/dev/null || echo "")
   fi
@@ -874,17 +966,53 @@ cmd_build_diagram_suggestions() {
   bash "$SKILL_DIR/scripts/diagram-suggest.sh" "$draft_path" "$verbose"
 }
 
+cmd_build_readability_report() {
+  local verbose="${1:-}"
+  local draft_path
+  draft_path=$(latest_draft)
+  if [ -z "$draft_path" ]; then
+    for f in "$STATE_DIR/final-external.md" "$STATE_DIR/final-internal.md"; do
+      if [ -f "$f" ]; then
+        draft_path="$f"
+        break
+      fi
+    done
+  fi
+  if [ -z "$draft_path" ]; then
+    echo '{"error":"no draft or final article found for readability analysis"}'
+    return 1
+  fi
+  bash "$SKILL_DIR/scripts/readability-score.sh" "$draft_path" "$verbose"
+}
+
+cmd_build_word_analysis() {
+  local top_n="${1:-25}"
+  local draft_path
+  draft_path=$(latest_draft)
+  if [ -z "$draft_path" ]; then
+    for f in "$STATE_DIR/final-external.md" "$STATE_DIR/final-internal.md"; do
+      if [ -f "$f" ]; then
+        draft_path="$f"
+        break
+      fi
+    done
+  fi
+  if [ -z "$draft_path" ]; then
+    echo '{"error":"no draft or final article found for word analysis"}'
+    return 1
+  fi
+  bash "$SKILL_DIR/scripts/word-frequency.sh" "$draft_path" "$top_n"
+}
+
 cmd_build_series_context() {
   # Build series context for prompt injection
-  # If pipeline state has series_id, use series-manager.sh context
-  local series_id=""
-  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    series_id=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('series_id','') or '')" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
-  fi
+  # If pipeline state has series_id, use series-manager.sh context (cached)
+  local series_id
+  series_id=$(cached_series_id)
 
   if [ -n "$series_id" ]; then
     local context
-    context=$(bash "$SKILL_DIR/scripts/series-manager.sh" context "$series_id" 2>/dev/null || echo "")
+    context=$(cached_series_context)
     if [ -n "$context" ]; then
       echo "## Series Context"
       echo ""
@@ -906,7 +1034,7 @@ cmd_build_series_context() {
 cmd_build_analytics_insights() {
   # Output performance insights from taste memory for prompt injection
   local taste
-  taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+  taste=$(cached_taste_memory)
   if [ -z "$taste" ]; then
     echo "(no performance insights available)"
     return
@@ -1251,6 +1379,8 @@ case "$CMD" in
   build-seo-metadata) cmd_build_seo_metadata "$@" ;;
   build-code-validation) cmd_build_code_validation "$@" ;;
   build-diagram-suggestions) cmd_build_diagram_suggestions "$@" ;;
+  build-readability-report) cmd_build_readability_report "$@" ;;
+  build-word-analysis) cmd_build_word_analysis "$@" ;;
   build-series-context) cmd_build_series_context ;;
   build-analytics-insights) cmd_build_analytics_insights ;;
   build-analytics-summary) cmd_build_analytics_summary ;;
