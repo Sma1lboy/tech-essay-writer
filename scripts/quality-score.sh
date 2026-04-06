@@ -20,6 +20,17 @@ state_dir = sys.argv[1]
 verbose = sys.argv[2] == "verbose" if len(sys.argv) > 2 else False
 
 scores = {}
+
+# Detect language from pipeline state to determine if chinese reviewer is active
+pipeline_file = os.path.join(state_dir, "pipeline-state.json")
+language = "en"
+if os.path.exists(pipeline_file):
+    try:
+        with open(pipeline_file) as f:
+            language = json.load(f).get("language", "en")
+    except (json.JSONDecodeError, IOError):
+        pass
+
 weights = {
     "technical": 0.20,
     "editor": 0.20,
@@ -29,6 +40,10 @@ weights = {
     "external": 0.10,
     "factcheck": 0.15
 }
+
+# Add chinese reviewer weight when language is zh
+if language == "zh":
+    weights["chinese"] = 0.10
 
 # Rating to score mappings
 rating_scores = {
@@ -45,7 +60,9 @@ rating_scores = {
     # External
     "CLEAR": 9, "NEEDS_CONTEXT": 5, "INACCESSIBLE": 2,
     # Factcheck
-    "VERIFIED": 9, "NEEDS_VERIFICATION": 5, "UNRELIABLE": 2
+    "VERIFIED": 9, "NEEDS_VERIFICATION": 5, "UNRELIABLE": 2,
+    # Chinese
+    "NATIVE": 9, "ACCEPTABLE": 6, "TRANSLATION_SMELL": 2
 }
 
 # Read each review
@@ -132,14 +149,15 @@ result = {
     "readiness": readiness,
     "dimension_scores": scores,
     "reviews_available": len(scores),
-    "reviews_expected": 7
+    "reviews_expected": 8 if language == "zh" else 7
 }
 
 if verbose:
     print(f"\n{'='*40}")
     print(f"Quality Score: {composite}/10 {emoji}")
     print(f"Readiness: {readiness}")
-    print(f"Reviews: {len(scores)}/7")
+    expected = 8 if language == "zh" else 7
+    print(f"Reviews: {len(scores)}/{expected}")
     for r, s in sorted(scores.items(), key=lambda x: -x[1]):
         bar = "█" * int(s) + "░" * (10 - int(s))
         print(f"  {r:15s} {bar} {s}")

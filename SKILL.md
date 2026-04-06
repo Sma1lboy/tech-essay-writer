@@ -150,6 +150,14 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progre
 
 ### Stage 2: RESEARCH SYNTHESIS
 
+Before dispatching the research agent, generate a structured research brief (questions, competitive landscape queries, unique angles) from the topic:
+
+```bash
+bash "$SKILL_DIR/scripts/topic-research.sh" "$PROJECT_DIR" "<topic>"
+```
+
+This writes `.essay-state/topic-research.json` with research questions, landscape queries, and angle suggestions that feed into the research agent.
+
 Dispatch a research agent with fresh context:
 
 ```bash
@@ -271,9 +279,9 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progre
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" review
 ```
 
-### Stage 5: ADVERSARIAL REVIEW PANEL (7 Parallel Agents)
+### Stage 5: ADVERSARIAL REVIEW PANEL (7 or 8 Parallel Agents)
 
-This is the core quality mechanism. Launch 7 independent reviewers in parallel.
+This is the core quality mechanism. Launch 7 independent reviewers in parallel (or 8 when language=zh, adding the Chinese writing quality reviewer).
 Each gets FRESH CONTEXT — no knowledge of other reviewers.
 
 ```bash
@@ -284,9 +292,15 @@ PROMPT_AUD=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR
 PROMPT_SEO=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts seo)
 PROMPT_EXT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts external)
 PROMPT_FC=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts factcheck)
+
+# When language=zh, also dispatch the Chinese writing quality reviewer (8th reviewer)
+LANG=$(bash "$SKILL_DIR/scripts/pipeline-state.sh" get-field "$PROJECT_DIR" language)
+if [ "$LANG" = '"zh"' ] || [ "$LANG" = 'zh' ]; then
+  PROMPT_ZH=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts chinese)
+fi
 ```
 
-Launch ALL SEVEN via Agent tool in a SINGLE message:
+Launch ALL SEVEN (or EIGHT for zh) via Agent tool in a SINGLE message:
 ```
 Agent(description="Technical review", prompt=PROMPT_TECH)
 Agent(description="Editorial review", prompt=PROMPT_EDIT)
@@ -295,6 +309,8 @@ Agent(description="Audience proxy review", prompt=PROMPT_AUD)
 Agent(description="SEO/reach review", prompt=PROMPT_SEO)
 Agent(description="External perspective review", prompt=PROMPT_EXT)
 Agent(description="Fact-checking review", prompt=PROMPT_FC)
+# Only when language=zh:
+Agent(description="Chinese writing quality review", prompt=PROMPT_ZH)
 ```
 
 After all complete, aggregate, score, and calibrate:
@@ -474,6 +490,16 @@ After user approves:
 ```bash
 bash "$SKILL_DIR/scripts/taste-memory.sh" update "$PROJECT_DIR"
 bash "$SKILL_DIR/scripts/pipeline-state.sh" complete "$PROJECT_DIR"
+```
+
+Export the finished article in the user's preferred format:
+```bash
+# Export all final articles as a bundle (tar.gz)
+bash "$SKILL_DIR/scripts/export.sh" "$PROJECT_DIR" bundle ./exports
+
+# Or export as markdown, html, json, or archive to ~/.tech-essay-writer/articles/
+bash "$SKILL_DIR/scripts/export.sh" "$PROJECT_DIR" markdown ./output
+bash "$SKILL_DIR/scripts/export.sh" "$PROJECT_DIR" archive
 ```
 
 If the user edited the draft manually, learn from their changes:

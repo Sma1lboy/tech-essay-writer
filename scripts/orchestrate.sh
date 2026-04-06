@@ -604,7 +604,18 @@ cmd_build_review_prompts() {
     "seo:reviewer-seo.md"
     "external:reviewer-external.md"
     "factcheck:reviewer-factcheck.md"
+    "chinese:reviewer-chinese.md"
   )
+
+  # Chinese reviewer is only valid when language=zh
+  if [ "$reviewer" = "chinese" ]; then
+    local lang
+    lang=$(cached_language)
+    if [ "$lang" != "zh" ]; then
+      echo "ERROR: Chinese reviewer is only available when language=zh (current: $lang)" >&2
+      return 1
+    fi
+  fi
 
   local template=""
   for mapping in "${template_map[@]}"; do
