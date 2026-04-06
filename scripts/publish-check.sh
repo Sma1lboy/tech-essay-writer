@@ -37,7 +37,7 @@ echo ""
 
 echo "Pipeline Completion:"
 check "Pipeline state exists" "[ -f '$STATE_DIR/pipeline-state.json' ]"
-check "Pipeline marked complete" "python3 -c \"import json; assert json.load(open('$STATE_DIR/pipeline-state.json')).get('completed')\" 2>/dev/null"
+check "Pipeline marked complete" "python3 -c \"import json,sys; assert json.load(open(sys.argv[1])).get('completed')\" '$STATE_DIR/pipeline-state.json' 2>/dev/null"
 
 echo ""
 echo "Content Artifacts:"
@@ -67,16 +67,16 @@ fi
 echo ""
 echo "Social package:"
 if [ -f "$STATE_DIR/social-package.json" ]; then
-  warn_check "Has Twitter thread" "python3 -c \"import json; assert json.load(open('$STATE_DIR/social-package.json')).get('twitter_thread')\" 2>/dev/null"
-  warn_check "Has LinkedIn post" "python3 -c \"import json; assert json.load(open('$STATE_DIR/social-package.json')).get('linkedin_post')\" 2>/dev/null"
-  warn_check "Has HN title" "python3 -c \"import json; assert json.load(open('$STATE_DIR/social-package.json')).get('hn_title')\" 2>/dev/null"
+  warn_check "Has Twitter thread" "python3 -c \"import json,sys; assert json.load(open(sys.argv[1])).get('twitter_thread')\" '$STATE_DIR/social-package.json' 2>/dev/null"
+  warn_check "Has LinkedIn post" "python3 -c \"import json,sys; assert json.load(open(sys.argv[1])).get('linkedin_post')\" '$STATE_DIR/social-package.json' 2>/dev/null"
+  warn_check "Has HN title" "python3 -c \"import json,sys; assert json.load(open(sys.argv[1])).get('hn_title')\" '$STATE_DIR/social-package.json' 2>/dev/null"
 fi
 
 echo ""
 echo "Quality Gate:"
 if [ -f "$STATE_DIR/quality-score.json" ]; then
-  SCORE=$(python3 -c "import json; print(json.load(open('$STATE_DIR/quality-score.json')).get('composite_score', 0))")
-  READINESS=$(python3 -c "import json; print(json.load(open('$STATE_DIR/quality-score.json')).get('readiness', 'UNKNOWN'))")
+  SCORE=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('composite_score', 0))" "$STATE_DIR/quality-score.json")
+  READINESS=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('readiness', 'UNKNOWN'))" "$STATE_DIR/quality-score.json")
   check "Quality score ≥ 6.0 (score: $SCORE, readiness: $READINESS)" "python3 -c \"assert $SCORE >= 6.0\""
 else
   warn_check "Quality score computed" "false"

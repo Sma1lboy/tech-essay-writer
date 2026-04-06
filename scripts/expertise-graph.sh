@@ -210,11 +210,11 @@ cmd_suggest() {
   local author_expertise="[]"
   if [ -f "$GRAPH_DIR/author-profile.json" ]; then
     author_expertise=$(python3 -c "
-import json
-with open('$GRAPH_DIR/author-profile.json') as f:
+import json, sys
+with open(sys.argv[1]) as f:
     d = json.load(f)
 print(json.dumps(d.get('expertise_areas', [])))
-" 2>/dev/null || echo "[]")
+" "$GRAPH_DIR/author-profile.json" 2>/dev/null || echo "[]")
   fi
 
   python3 -c "

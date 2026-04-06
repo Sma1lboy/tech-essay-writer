@@ -93,7 +93,7 @@ latest_draft_version() {
 build_language_directive() {
   local lang="en"
   if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    lang=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('language','en'))" 2>/dev/null || echo "en")
+    lang=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('language','en'))" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "en")
   fi
   if [ "$lang" = "zh" ]; then
     cat <<'LANG_END'
@@ -116,7 +116,7 @@ LANG_END
 get_series_context_section() {
   local series_id=""
   if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    series_id=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('series_id','') or '')" 2>/dev/null || echo "")
+    series_id=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('series_id','') or '')" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
   fi
   if [ -n "$series_id" ]; then
     local ctx
@@ -140,7 +140,7 @@ SERIES_END
 get_series_nav_section() {
   local series_id=""
   if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    series_id=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('series_id','') or '')" 2>/dev/null || echo "")
+    series_id=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('series_id','') or '')" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
   fi
   if [ -n "$series_id" ]; then
     local ctx
@@ -166,8 +166,8 @@ cmd_status() {
     return
   fi
   python3 -c "
-import json
-with open('$STATE_DIR/pipeline-state.json') as f:
+import json, sys
+with open(sys.argv[1]) as f:
     d = json.load(f)
 stage = d.get('stage', 'unknown')
 topic = d.get('topic', 'unknown')
@@ -181,7 +181,7 @@ print(f'Draft version: {draft_v}')
 print(f'Refinement round: {ref_round}/3')
 print(f'Reviews: {reviews}/7')
 print(f'Completed: {completed}')
-"
+" "$STATE_DIR/pipeline-state.json"
 }
 
 cmd_next_stage() {
@@ -190,18 +190,18 @@ cmd_next_stage() {
     return
   fi
   python3 -c "
-import json, os
-with open('$STATE_DIR/pipeline-state.json') as f:
+import json, os, sys
+state_dir = sys.argv[1]
+with open(os.path.join(state_dir, 'pipeline-state.json')) as f:
     d = json.load(f)
 stage = d.get('stage', 'intake')
-state_dir = '$STATE_DIR'
 
 if stage == 'complete':
     print('complete')
 elif stage == 'intake':
     # Check if materials exist
-    if os.path.exists(f'{state_dir}/materials.json'):
-        with open(f'{state_dir}/materials.json') as f:
+    if os.path.exists(os.path.join(state_dir, 'materials.json')):
+        with open(os.path.join(state_dir, 'materials.json')) as f:
             m = json.load(f)
         if m.get('source_count', 0) > 0:
             print('research')
@@ -210,14 +210,14 @@ elif stage == 'intake':
     else:
         print('intake')
 elif stage == 'research':
-    if os.path.exists(f'{state_dir}/research-synthesis.json'):
+    if os.path.exists(os.path.join(state_dir, 'research-synthesis.json')):
         print('outline')
     else:
         print('research')
 elif stage == 'outline':
     # Check if any outline exists
-    has_outline = any(os.path.exists(f'{state_dir}/outline-{v}.json') for v in ['A','B','C'])
-    has_critique = os.path.exists(f'{state_dir}/outline-critique.json')
+    has_outline = any(os.path.exists(os.path.join(state_dir, f'outline-{v}.json')) for v in ['A','B','C'])
+    has_critique = os.path.exists(os.path.join(state_dir, 'outline-critique.json'))
     if has_outline and d.get('outline_variant'):
         print('draft')
     elif has_outline and has_critique:
@@ -227,7 +227,7 @@ elif stage == 'outline':
     else:
         print('outline')
 elif stage == 'draft':
-    if os.path.exists(f'{state_dir}/draft-v1.md'):
+    if os.path.exists(os.path.join(state_dir, 'draft-v1.md')):
         print('review')
     else:
         print('draft')
@@ -243,13 +243,13 @@ elif stage == 'refinement':
     else:
         print('refinement')
 elif stage == 'polish':
-    if os.path.exists(f'{state_dir}/final-internal.md') and os.path.exists(f'{state_dir}/final-external.md'):
+    if os.path.exists(os.path.join(state_dir, 'final-internal.md')) and os.path.exists(os.path.join(state_dir, 'final-external.md')):
         print('complete')
     else:
         print('polish')
 else:
     print(stage)
-"
+" "$STATE_DIR"
 }
 
 cmd_build_intake_summary() {
@@ -655,7 +655,7 @@ cmd_build_format_prompts() {
   # Get cross-references for the topic
   local xrefs=""
   local topic
-  topic=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('topic',''))" 2>/dev/null || echo "")
+  topic=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('topic',''))" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
   if [ -n "$topic" ] && [ -f "$HOME/.tech-essay-writer/published-articles.json" ]; then
     xrefs=$(bash "$SKILL_DIR/scripts/cross-reference.sh" suggest "$topic" 2>/dev/null || echo "")
   fi
@@ -879,7 +879,7 @@ cmd_build_series_context() {
   # If pipeline state has series_id, use series-manager.sh context
   local series_id=""
   if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    series_id=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('series_id','') or '')" 2>/dev/null || echo "")
+    series_id=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('series_id','') or '')" "$STATE_DIR/pipeline-state.json" 2>/dev/null || echo "")
   fi
 
   if [ -n "$series_id" ]; then

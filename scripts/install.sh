@@ -22,7 +22,8 @@ do_install() {
     rm "$SKILL_DIR"
   fi
 
-  # Create skill directory if it doesn't exist
+  # Ensure parent directory exists and create skill directory
+  mkdir -p "$(dirname "$SKILL_DIR")"
   mkdir -p "$SKILL_DIR"
 
   # Symlink each component
@@ -35,9 +36,12 @@ do_install() {
       continue
     fi
 
-    # Remove stale symlink if present
+    # Remove stale symlink or existing file/directory at the link path
     if [ -L "$link" ]; then
       rm "$link"
+    elif [ -e "$link" ]; then
+      echo "Warning: $link exists and is not a symlink, replacing"
+      rm -rf "$link"
     fi
 
     ln -s "$target" "$link"

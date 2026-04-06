@@ -97,8 +97,8 @@ cmd_init() {
   local config_language="en"
   local config_max_rounds="3"
   if [ -f "$config_file" ]; then
-    config_language=$(python3 -c "import json; print(json.load(open('$config_file')).get('language','en'))" 2>/dev/null || echo "en")
-    config_max_rounds=$(python3 -c "import json; print(json.load(open('$config_file')).get('max_refinement_rounds',3))" 2>/dev/null || echo "3")
+    config_language=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('language','en'))" "$config_file" 2>/dev/null || echo "en")
+    config_max_rounds=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('max_refinement_rounds',3))" "$config_file" 2>/dev/null || echo "3")
   fi
 
   local state

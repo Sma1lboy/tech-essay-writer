@@ -23,7 +23,7 @@ get_current_stage() {
   local project="$1"
   local state_file="$project/$STATE_DIR/pipeline-state.json"
   if [ -f "$state_file" ]; then
-    python3 -c "import json; print(json.load(open('$state_file')).get('stage','unknown'))"
+    python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get('stage','unknown'))" "$state_file" 2>/dev/null || echo "unknown"
   else
     echo "unknown"
   fi
