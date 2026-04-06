@@ -365,13 +365,48 @@ Agent(description="Social media package", prompt=SOCIAL_PROMPT)
 
 The agent writes `.essay-state/social-package.json` with Twitter thread, LinkedIn post, 小红书 post, HN title, and author CTAs.
 
+### Post-Draft Analysis (Between Stage 4 and 5)
+
+Before review, run code validation and diagram suggestions:
+
+```bash
+# Validate code examples in the draft
+bash "$SKILL_DIR/scripts/code-validate.sh" ".essay-state/draft-v1.md"
+
+# Suggest where diagrams would improve the article
+bash "$SKILL_DIR/scripts/diagram-suggest.sh" ".essay-state/draft-v1.md"
+```
+
+If code validation finds issues, fix them before sending to review.
+If diagram suggestions are compelling, note them for the refinement stage.
+
+### Influence & SEO Analysis (After Stage 5 Review)
+
+After reviews complete, assess influence potential and generate SEO data:
+
+```bash
+# Predict influence potential (0-10 across 5 dimensions)
+bash "$SKILL_DIR/scripts/influence-score.sh" "$PROJECT_DIR" verbose
+
+# Generate SEO metadata (OpenGraph, meta tags, JSON-LD, keywords)
+bash "$SKILL_DIR/scripts/seo-metadata.sh" "$PROJECT_DIR"
+```
+
+Present influence score to user with the quality score.
+
 Run publish readiness check:
 ```bash
 bash "$SKILL_DIR/scripts/publish-check.sh" "$PROJECT_DIR"
 ```
 
-**Final checkpoint:** Present both versions, platform outputs, social package, and publish readiness.
-"Article complete! Quality score: X/10. Review all versions. Any adjustments?"
+**Final checkpoint:** Present both versions, platform outputs, social package, quality score, influence score, and publish readiness.
+
+Show progress:
+```bash
+bash "$SKILL_DIR/scripts/progress-display.sh" "$PROJECT_DIR"
+```
+
+"Article complete! Quality: X/10. Influence: Y/10. Review all versions. Any adjustments?"
 
 ### Completion
 
@@ -382,18 +417,57 @@ bash "$SKILL_DIR/scripts/pipeline-state.sh" complete "$PROJECT_DIR"
 bash "$SKILL_DIR/scripts/expertise-graph.sh" update "<topic>" "<tag1> <tag2>"
 ```
 
-After publishing, register the article for future cross-referencing:
+Show publishing guides for chosen platforms:
+```bash
+bash "$SKILL_DIR/scripts/publishing-guide.sh" <platform>
+```
+
+After publishing, register the article and record analytics:
 ```bash
 bash "$SKILL_DIR/scripts/cross-reference.sh" add "<title>" "<published_url>" "<tag1> <tag2>"
+bash "$SKILL_DIR/scripts/analytics-feedback.sh" record "$PROJECT_DIR" "<url>" "<platform>"
 ```
+
+## Series Support
+
+For multi-article series:
+```bash
+# Create a new series
+bash "$SKILL_DIR/scripts/series-manager.sh" create "<series_name>" "<description>"
+
+# Add current article to a series
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" series_id "<series_id>"
+
+# Series context is auto-injected into outline, writer, and formatter prompts
+```
+
+## Configuration
+
+User preferences stored at `~/.tech-essay-writer/config.json`:
+```bash
+bash "$SKILL_DIR/scripts/config.sh" init            # Initialize defaults
+bash "$SKILL_DIR/scripts/config.sh" set language zh  # Set language preference
+bash "$SKILL_DIR/scripts/config.sh" add-platform medium  # Add default platform
+bash "$SKILL_DIR/scripts/config.sh" read             # Show all config
+```
+
+Config values auto-apply to new pipelines (language, max refinement rounds, default platforms).
 
 ## Resume Support
 
 If invoked with "resume":
 ```bash
 STAGE=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" next-stage)
+bash "$SKILL_DIR/scripts/progress-display.sh" "$PROJECT_DIR"
 ```
-Jump to that stage's execution block above.
+Show current progress, then jump to that stage's execution block above.
+
+State checkpoints are saved automatically at each stage transition.
+To restore a previous state:
+```bash
+bash "$SKILL_DIR/scripts/checkpoint.sh" list "$PROJECT_DIR"
+bash "$SKILL_DIR/scripts/checkpoint.sh" restore "$PROJECT_DIR" "<checkpoint_id>"
+```
 
 ## Error Handling
 
@@ -402,6 +476,8 @@ Jump to that stage's execution block above.
 - All 3 outlines too similar → re-dispatch with explicit differentiation instructions
 - Refinement doesn't converge in 3 rounds → present best version with reviewer caveats
 - Any agent fails to write output file → read agent response, write file yourself
+- Code validation fails → fix code blocks before advancing to review
+- Pipeline interrupted → use resume support with checkpoint restore
 
 ## Boundaries
 

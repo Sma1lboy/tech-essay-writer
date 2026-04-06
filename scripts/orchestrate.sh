@@ -33,6 +33,10 @@ Commands:
   check-convergence     Check if refinement loop should continue
   show-progress         Show rich pipeline progress visualization
   publishing-guide      Show per-platform publishing workflow guide
+  list-checkpoints      List all saved state checkpoints
+  rollback <id>         Restore state from a checkpoint
+  retry-stage <stage>   Reset and retry a failed stage
+  resume                Detect partial state and advise next action
 EOF
 }
 
@@ -1002,6 +1006,208 @@ cmd_publishing_guide() {
   bash "$SKILL_DIR/scripts/publishing-guide.sh" "$platform" "$PROJECT_DIR" "$@"
 }
 
+cmd_list_checkpoints() {
+  bash "$SKILL_DIR/scripts/checkpoint.sh" list "$PROJECT_DIR"
+}
+
+cmd_rollback() {
+  local ckpt_id="${1:?checkpoint id required}"
+  bash "$SKILL_DIR/scripts/checkpoint.sh" rollback "$PROJECT_DIR" "$ckpt_id"
+}
+
+cmd_retry_stage() {
+  local stage="${1:?stage required}"
+  local valid_stages="intake research outline draft review refinement polish"
+  if ! echo "$valid_stages" | grep -qw "$stage"; then
+    echo "ERROR: Invalid stage '$stage'. Valid: $valid_stages" >&2
+    return 1
+  fi
+
+  # Map stage to its output artifacts for cleanup
+  local artifacts_to_clear=()
+  case "$stage" in
+    intake)
+      artifacts_to_clear=("materials.json")
+      ;;
+    research)
+      artifacts_to_clear=("research-synthesis.json")
+      ;;
+    outline)
+      artifacts_to_clear=("outline-A.json" "outline-B.json" "outline-C.json" "outline-critique.json")
+      ;;
+    draft)
+      # Clear all draft versions
+      for f in "$STATE_DIR"/draft-v*.md; do
+        [ -f "$f" ] && artifacts_to_clear+=("$(basename "$f")")
+      done
+      ;;
+    review)
+      # Clear all review files and panel summary
+      for f in "$STATE_DIR"/review-*.json; do
+        [ -f "$f" ] && artifacts_to_clear+=("$(basename "$f")")
+      done
+      ;;
+    refinement)
+      # Clear refinement change logs (keep draft versions)
+      for f in "$STATE_DIR"/refinement-*-changes.json; do
+        [ -f "$f" ] && artifacts_to_clear+=("$(basename "$f")")
+      done
+      ;;
+    polish)
+      # Clear final outputs
+      for f in "$STATE_DIR"/final-*.md "$STATE_DIR"/social-package.json; do
+        [ -f "$f" ] && artifacts_to_clear+=("$(basename "$f")")
+      done
+      ;;
+  esac
+
+  # Remove artifacts
+  local removed=0
+  for artifact in "${artifacts_to_clear[@]}"; do
+    if [ -f "$STATE_DIR/$artifact" ]; then
+      rm "$STATE_DIR/$artifact"
+      removed=$((removed + 1))
+    fi
+  done
+
+  # Reset stage in pipeline state
+  bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" "$stage"
+
+  # Reset stage-specific fields
+  case "$stage" in
+    outline)
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" outline_variant "null"
+      ;;
+    review)
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" reviews "{}"
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" review_panel_complete "false"
+      ;;
+    refinement)
+      bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" refinement_round "0"
+      ;;
+  esac
+
+  echo "Retry: stage reset to '$stage', cleared $removed artifact(s)"
+}
+
+cmd_resume() {
+  if [ ! -f "$STATE_DIR/pipeline-state.json" ]; then
+    echo "STATUS: not_initialized"
+    echo "ACTION: Run intake to start a new pipeline"
+    return
+  fi
+
+  python3 -c "
+import json, os, sys
+
+state_dir = sys.argv[1]
+with open(f'{state_dir}/pipeline-state.json') as f:
+    d = json.load(f)
+
+stage = d.get('stage', 'unknown')
+completed = d.get('completed', False)
+
+if completed:
+    print('STATUS: complete')
+    print('ACTION: Pipeline already complete. Start a new one or rollback to modify.')
+    sys.exit(0)
+
+print(f'STATUS: {stage}')
+
+# Detect partial completion per stage
+if stage == 'intake':
+    has_materials = os.path.exists(f'{state_dir}/materials.json')
+    if has_materials:
+        with open(f'{state_dir}/materials.json') as f:
+            m = json.load(f)
+        count = m.get('source_count', 0)
+        print(f'PROGRESS: {count} material(s) collected')
+        if count > 0:
+            print('ACTION: Materials ready. Advance to research stage.')
+        else:
+            print('ACTION: Add materials before advancing.')
+    else:
+        print('PROGRESS: No materials yet')
+        print('ACTION: Add materials (URLs, notes, files, code).')
+
+elif stage == 'research':
+    has_research = os.path.exists(f'{state_dir}/research-synthesis.json')
+    if has_research:
+        print('PROGRESS: Research synthesis complete')
+        print('ACTION: Advance to outline stage.')
+    else:
+        print('PROGRESS: Research not started')
+        print('ACTION: Run research agent.')
+
+elif stage == 'outline':
+    outlines = [v for v in ['A','B','C'] if os.path.exists(f'{state_dir}/outline-{v}.json')]
+    has_critique = os.path.exists(f'{state_dir}/outline-critique.json')
+    chosen = d.get('outline_variant')
+    print(f'PROGRESS: {len(outlines)}/3 outlines, critique={has_critique}, chosen={chosen}')
+    if chosen:
+        print('ACTION: Advance to draft stage.')
+    elif has_critique:
+        print('ACTION: Choose an outline variant (A/B/C).')
+    elif len(outlines) == 3:
+        print('ACTION: Run outline critique agent.')
+    elif len(outlines) > 0:
+        missing = [v for v in ['A','B','C'] if v not in outlines]
+        print(f'ACTION: Generate missing outline(s): {missing}')
+    else:
+        print('ACTION: Generate 3 outline variants.')
+
+elif stage == 'draft':
+    drafts = [f for f in os.listdir(state_dir) if f.startswith('draft-v') and f.endswith('.md')]
+    if drafts:
+        latest = sorted(drafts)[-1]
+        print(f'PROGRESS: Draft exists ({latest})')
+        print('ACTION: Advance to review stage.')
+    else:
+        print('PROGRESS: No draft written yet')
+        print('ACTION: Run writer agent.')
+
+elif stage == 'review':
+    reviews = d.get('reviews', {})
+    panel_done = d.get('review_panel_complete', False)
+    has_summary = os.path.exists(f'{state_dir}/review-panel-summary.json')
+    expected = ['technical','editor','adversarial','audience','seo','external','factcheck']
+    done = [r for r in expected if r in reviews or os.path.exists(f'{state_dir}/review-{r}.json')]
+    missing = [r for r in expected if r not in done]
+    print(f'PROGRESS: {len(done)}/7 reviews complete')
+    if missing:
+        print(f'MISSING: {missing}')
+        print(f'ACTION: Run missing reviewer(s): {missing}')
+    elif not has_summary:
+        print('ACTION: Aggregate reviews (run aggregate-reviews.sh).')
+    else:
+        print('ACTION: Advance to refinement stage.')
+
+elif stage == 'refinement':
+    ref_round = d.get('refinement_round', 0)
+    max_rounds = d.get('max_refinement_rounds', 3)
+    print(f'PROGRESS: Round {ref_round}/{max_rounds}')
+    if ref_round >= max_rounds:
+        print('ACTION: Max rounds reached. Advance to polish stage.')
+    else:
+        print(f'ACTION: Run refinement round {ref_round + 1}.')
+
+elif stage == 'polish':
+    has_internal = os.path.exists(f'{state_dir}/final-internal.md')
+    has_external = os.path.exists(f'{state_dir}/final-external.md')
+    print(f'PROGRESS: internal={has_internal}, external={has_external}')
+    if has_internal and has_external:
+        print('ACTION: Both formats ready. Complete the pipeline.')
+    elif has_internal:
+        print('ACTION: Generate external format.')
+    elif has_external:
+        print('ACTION: Generate internal format.')
+    else:
+        print('ACTION: Generate internal and external formats.')
+else:
+    print(f'ACTION: Unknown state. Check pipeline-state.json manually.')
+" "$STATE_DIR"
+}
+
 # Main dispatch
 case "$CMD" in
   status) cmd_status ;;
@@ -1028,5 +1234,9 @@ case "$CMD" in
   check-convergence) cmd_check_convergence "$@" ;;
   show-progress) cmd_show_progress "$@" ;;
   publishing-guide) cmd_publishing_guide "$@" ;;
+  list-checkpoints) cmd_list_checkpoints ;;
+  rollback) cmd_rollback "$@" ;;
+  retry-stage) cmd_retry_stage "$@" ;;
+  resume) cmd_resume ;;
   *) usage; exit 1 ;;
 esac
