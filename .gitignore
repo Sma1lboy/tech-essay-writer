@@ -1,0 +1,11 @@
+# Runtime state (generated during pipeline execution)
+.essay-state/
+.autonomous/
+
+# OS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
