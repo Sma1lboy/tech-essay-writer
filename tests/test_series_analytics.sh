@@ -386,11 +386,8 @@ assert_contains "format prompt includes series navigation" "Series Navigation" "
 # ============================================================
 
 echo ""
-echo "=== Results ==="
-echo "PASS: $PASS"
-echo "FAIL: $FAIL"
-echo "TOTAL: $((PASS + FAIL))"
+echo "========================================"
+echo "test_series_analytics: $((PASS + FAIL)) tests | Pass: $PASS | Fail: $FAIL"
+echo "========================================"
 
-if [ "$FAIL" -gt 0 ]; then
-  exit 1
-fi
+[ "$FAIL" -eq 0 ] && exit 0 || exit 1

@@ -46,6 +46,41 @@
       "status": "running",
       "commits": [],
       "summary": ""
+    },
+    {
+      "number": 7,
+      "direction": "Add new article templates (comparison, listicle, incident postmortem, release announcement, architecture decision record) and build a code example validation system that parses code blocks, checks syntax, verifies imports, and flags non-runnable examples",
+      "status": "running",
+      "commits": [],
+      "summary": ""
+    },
+    {
+      "number": 8,
+      "direction": "Build diagram and image suggestion engine \u2014 analyze article content and suggest where architecture diagrams, flow charts, comparison tables, or screenshots would improve comprehension. Output suggested diagram descriptions in Mermaid syntax where possible",
+      "status": "running",
+      "commits": [],
+      "summary": ""
+    },
+    {
+      "number": 9,
+      "direction": "Build article series support (multi-article series with consistent narrative arc, cross-references, series metadata, and reading order) and analytics feedback loop (track article performance metrics like views/shares/comments, feed metrics back into taste memory to improve future articles)",
+      "status": "running",
+      "commits": [],
+      "summary": ""
+    },
+    {
+      "number": 10,
+      "direction": "Build a configuration system \u2014 user preferences for default target platforms, preferred writing style, target audiences, language preferences, default author profile. Store at ~/.tech-essay-writer/config.json with CLI commands to get/set values",
+      "status": "running",
+      "commits": [],
+      "summary": ""
+    },
+    {
+      "number": 11,
+      "direction": "Build progress visualization system (show pipeline progress to user with stage indicators, completion percentage, quality metrics dashboard) and publishing workflow guides (step-by-step instructions for publishing to each supported platform with platform-specific SEO tips)",
+      "status": "running",
+      "commits": [],
+      "summary": ""
     }
   ],
   "consecutive_complete": 1,

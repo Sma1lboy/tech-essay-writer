@@ -37,7 +37,6 @@ scripts/
   seo-metadata.sh           # SEO metadata generator (OG, meta, JSON-LD, keyword density)
   code-validate.sh          # Code example validator (syntax, imports, fragment detection)
   diagram-suggest.sh        # Diagram/image suggestion engine (Mermaid syntax, bilingual)
-  article-series.sh         # Article series (create/manage series with narrative arcs)
   series-manager.sh         # Article series manager (reading order, narrative arc, shared context)
   analytics-feedback.sh     # Analytics feedback loop (metrics tracking, taste memory integration)
   fetch-urls.sh             # URL content fetcher
@@ -131,5 +130,5 @@ Persistent data at `~/.tech-essay-writer/`:
 ## Testing
 
 ```bash
-bash tests/run-all.sh  # 583 tests across 7 suites
+bash tests/run-all.sh  # 680 tests across 9 suites
 ```
