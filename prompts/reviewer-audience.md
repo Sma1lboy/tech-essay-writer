@@ -87,3 +87,31 @@ Write to `.essay-state/review-audience.json`:
   "overall_verdict": "One sentence: will this article achieve the author's goal of building influence?"
 }
 ```
+
+## Influence Building Assessment
+
+Beyond sharing, assess how this article builds the author's personal brand:
+
+### Authority Signals
+- Does the article demonstrate genuine expertise (not just surface knowledge)?
+- Does it contain original insights or just summarize existing content?
+- Would reading this make you want to follow the author for more?
+- Does the author's voice come through as distinctive?
+
+### Network Effects
+- Would this article introduce the author to new professional circles?
+- Could it lead to conference talk invitations, podcast interviews, or collaborations?
+- Does it position the author as a go-to resource on this topic?
+- Would it be cited by other articles? (reference-worthy insights)
+
+### Career Impact
+- For Reader A: Would this improve the author's reputation at their company?
+- For Reader B: Would this establish the author in the broader tech community?
+- Is this a "hire signal" — would it make someone want to work with the author?
+
+### Platform-Specific Potential
+- HN: Does it have a contrarian take or surprising data that drives discussion?
+- Twitter/X: Does it have quotable insights in <280 characters?
+- LinkedIn: Does it have professional takeaways managers would share?
+- 知乎: Does it have deep technical analysis Chinese engineers would upvote?
+- 微信公众号: Does it have shareable insights for Chinese tech WeChat groups?

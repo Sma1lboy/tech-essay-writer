@@ -79,6 +79,28 @@ Write to `.essay-state/review-technical.json`:
 }
 ```
 
+## Version & Deprecation Check
+
+For every technology, library, or API mentioned:
+- Is the version current? (e.g., React 18 vs 19, Python 3.11 vs 3.12)
+- Has any API used been deprecated?
+- Are there breaking changes the reader should know about?
+- If the article doesn't specify versions, flag this — readers need version context.
+
+## Reproducibility Test
+
+Imagine you're a reader following along:
+1. Could you set up the environment from the article alone?
+2. Could you run every code example in sequence?
+3. Are there hidden dependencies (env vars, config files, services)?
+4. Would the reader hit any "it works on my machine" issues?
+
+## Cross-Platform Concerns
+
+- Does the code assume a specific OS? (macOS vs Linux vs Windows)
+- Are file paths hardcoded? Are they cross-platform?
+- Are shell commands portable? (bash-isms, macOS vs GNU tools)
+
 ## Rating Criteria
 
 - **PASS**: No critical issues. Minor issues only. Safe to publish.
