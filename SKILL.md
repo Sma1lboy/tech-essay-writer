@@ -275,6 +275,11 @@ bash "$SKILL_DIR/scripts/taste-memory.sh" update "$PROJECT_DIR"
 bash "$SKILL_DIR/scripts/pipeline-state.sh" complete "$PROJECT_DIR"
 ```
 
+After publishing, register the article for future cross-referencing:
+```bash
+bash "$SKILL_DIR/scripts/cross-reference.sh" add "<title>" "<published_url>" "<tag1> <tag2>"
+```
+
 ## Resume Support
 
 If invoked with "resume":

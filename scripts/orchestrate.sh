@@ -476,6 +476,14 @@ cmd_build_format_prompts() {
   local taste
   taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
 
+  # Get cross-references for the topic
+  local xrefs=""
+  local topic
+  topic=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('topic',''))" 2>/dev/null || echo "")
+  if [ -n "$topic" ] && [ -f "$HOME/.tech-essay-writer/published-articles.json" ]; then
+    xrefs=$(bash "$SKILL_DIR/scripts/cross-reference.sh" suggest "$topic" 2>/dev/null || echo "")
+  fi
+
   cat << PROMPT_END
 $(read_prompt "$template")
 
@@ -501,9 +509,14 @@ ${audience_review:-"{}"}
 ${taste:-"{}"}
 \`\`\`
 
+## Previously Published Articles (for cross-referencing)
+
+${xrefs:-"(no published articles to cross-reference)"}
+
 ## Instructions
 
 Write the ${format} version to \`.essay-state/final-${format}.md\`
+Where relevant, cross-reference the author's previously published articles listed above.
 $([ "$format" = "external" ] && echo "Also write social media package to \`.essay-state/social-package.json\`")
 PROMPT_END
 }
