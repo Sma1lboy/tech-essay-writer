@@ -1,0 +1,44 @@
+{
+  "session_id": "conductor-1775464954",
+  "mission": "\u8bbe\u8ba1\u5e76\u5b9e\u73b0\u4e00\u4e2atech-essay-writer skill\uff0c\u80fd\u7aef\u5230\u7aef\u5e2e\u7528\u6237\u4ece\u539f\u59cb\u8d44\u6599\u751f\u6210\u9ad8\u8d28\u91cf\u6280\u672f\u6587\u7ae0\uff0c\u652f\u6301\u516c\u53f8\u5185\u90e8\u53d1\u5e03\u548c\u5916\u90e8\u7f51\u7edc\u53d1\u5e03\u4ee5\u589e\u52a0\u4e2a\u4eba\u5f71\u54cd\u529b\u3002\u53c2\u8003autonomous-skill\u7684\u591aagent\u67b6\u6784\u3001gstack\u7684\u5bf9\u6297\u751f\u6210\u548c\u5916\u90e8\u89c6\u89d2\u6982\u5ff5\u3002",
+  "phase": "directed",
+  "max_sprints": 50,
+  "max_directed_sprints": 35,
+  "sprints": [],
+  "consecutive_complete": 0,
+  "consecutive_zero_commits": 0,
+  "exploration": {
+    "test_coverage": {
+      "audited": false,
+      "score": null
+    },
+    "error_handling": {
+      "audited": false,
+      "score": null
+    },
+    "security": {
+      "audited": false,
+      "score": null
+    },
+    "code_quality": {
+      "audited": false,
+      "score": null
+    },
+    "documentation": {
+      "audited": false,
+      "score": null
+    },
+    "architecture": {
+      "audited": false,
+      "score": null
+    },
+    "performance": {
+      "audited": false,
+      "score": null
+    },
+    "dx": {
+      "audited": false,
+      "score": null
+    }
+  }
+}
