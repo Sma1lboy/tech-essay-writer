@@ -81,6 +81,41 @@
       "status": "running",
       "commits": [],
       "summary": ""
+    },
+    {
+      "number": 12,
+      "direction": "Create scripts/progress-display.sh that shows pipeline progress with ASCII stage indicators and completion metrics. Also create scripts/publish-guide.sh that outputs step-by-step publishing instructions for a given platform (medium/devto/wechat/juejin/hashnode). Both with tests.",
+      "status": "running",
+      "commits": [],
+      "summary": ""
+    },
+    {
+      "number": 13,
+      "direction": "Build error recovery and state checkpoint system \u2014 automatic state snapshots before each stage transition, ability to rollback to any checkpoint, retry failed stages, and resume interrupted pipelines cleanly",
+      "status": "running",
+      "commits": [],
+      "summary": ""
+    },
+    {
+      "number": 14,
+      "direction": "Create an install script (scripts/install.sh) that symlinks the skill to ~/.claude/skills/tech-essay-writer/. It should create the symlink for SKILL.md, scripts/, prompts/, and templates/. Also add an uninstall command. Wire the install into CLAUDE.md setup instructions.",
+      "status": "running",
+      "commits": [],
+      "summary": ""
+    },
+    {
+      "number": 15,
+      "direction": "Update SKILL.md to wire in all new capabilities: config system, series support, influence scoring, SEO metadata, diagram suggestions, code validation, progress display, publishing guides, checkpoint system, author profile, expertise graph. Also remove the duplicate publish-guide.sh vs publishing-guide.sh (keep the more complete one).",
+      "status": "running",
+      "commits": [],
+      "summary": ""
+    },
+    {
+      "number": 16,
+      "direction": "Enhance taste-memory.sh to learn from user edits: add a diff-learn command that compares the draft version with the user's edited version, extracts style patterns (tone changes, structure preferences, word choices), and stores them in taste memory. Also add a feedback command for explicit user preferences.",
+      "status": "running",
+      "commits": [],
+      "summary": ""
     }
   ],
   "consecutive_complete": 1,

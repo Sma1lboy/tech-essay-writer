@@ -37,6 +37,9 @@ echo "PROJECT_DIR=$PROJECT_DIR"
 # Initialize state
 mkdir -p .essay-state
 bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" status 2>/dev/null || echo "Fresh start."
+
+# Load user config and show defaults
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-config-summary
 ```
 
 ## CRITICAL: Act Immediately
@@ -94,6 +97,13 @@ bash "$SKILL_DIR/scripts/intake-materials.sh" add-angle "$PROJECT_DIR" "<angle>"
 
 For URLs that need fetching, use WebFetch, then update the material with key_points.
 
+**Series support:** If the user wants this article as part of a series, associate it:
+```bash
+bash "$SKILL_DIR/scripts/series-manager.sh" list
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" series_id "<series_id>"
+```
+Series context is then auto-injected into outline, writer, and formatter prompts.
+
 **Author profile check:**
 ```bash
 bash "$SKILL_DIR/scripts/author-profile.sh" read
@@ -117,6 +127,7 @@ Ask: "These are the themes and angles I found. Anything to add or emphasize?"
 Then advance:
 ```bash
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" research
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 ### Stage 2: RESEARCH SYNTHESIS
@@ -140,6 +151,7 @@ Ask: "Does this direction feel right?"
 Then advance:
 ```bash
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" outline
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 ### Stage 3: OUTLINE GENERATION (3 Parallel Variants)
@@ -186,6 +198,7 @@ Record the choice:
 ```bash
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" outline_variant "<chosen>"
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" draft
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 ### Stage 4: DRAFT WRITING
@@ -206,8 +219,29 @@ The agent writes `.essay-state/draft-v1.md`.
 **Verify:** Read the draft. Check it exists and has reasonable length.
 If < 500 words, re-dispatch with stronger instructions.
 
+**Note:** If `series_id` is set, series context (prior articles, narrative arc) is auto-injected into the writer prompt.
+
 ```bash
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" draft_version 1
+```
+
+#### Draft Quality Checks
+
+Before advancing to review, validate code and suggest diagrams:
+
+```bash
+# Validate code examples in the draft (syntax, imports, fragments)
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-code-validation
+
+# Suggest diagrams/images with Mermaid syntax
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-diagram-suggestions
+```
+
+If code validation finds issues, fix them in the draft before proceeding.
+If diagram suggestions are compelling, note them for the refinement stage.
+
+```bash
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" review
 ```
 
@@ -254,6 +288,7 @@ Read the panel summary, quality score, and calibration. If score < 6.0 or any RE
 
 ```bash
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" refinement
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 ### Stage 6: REFINEMENT LOOP (Max 3 Rounds)
@@ -365,47 +400,40 @@ Agent(description="Social media package", prompt=SOCIAL_PROMPT)
 
 The agent writes `.essay-state/social-package.json` with Twitter thread, LinkedIn post, 小红书 post, HN title, and author CTAs.
 
-### Post-Draft Analysis (Between Stage 4 and 5)
+**Note:** If `series_id` is set, series context (reading order, prior articles) is auto-injected into formatter prompts.
 
-Before review, run code validation and diagram suggestions:
+### Publishing Guides
 
-```bash
-# Validate code examples in the draft
-bash "$SKILL_DIR/scripts/code-validate.sh" ".essay-state/draft-v1.md"
-
-# Suggest where diagrams would improve the article
-bash "$SKILL_DIR/scripts/diagram-suggest.sh" ".essay-state/draft-v1.md"
-```
-
-If code validation finds issues, fix them before sending to review.
-If diagram suggestions are compelling, note them for the refinement stage.
-
-### Influence & SEO Analysis (After Stage 5 Review)
-
-After reviews complete, assess influence potential and generate SEO data:
+For each chosen platform, show step-by-step publishing instructions with SEO tips:
 
 ```bash
-# Predict influence potential (0-10 across 5 dimensions)
-bash "$SKILL_DIR/scripts/influence-score.sh" "$PROJECT_DIR" verbose
-
-# Generate SEO metadata (OpenGraph, meta tags, JSON-LD, keywords)
-bash "$SKILL_DIR/scripts/seo-metadata.sh" "$PROJECT_DIR"
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" publishing-guide <platform>
 ```
 
-Present influence score to user with the quality score.
+Platforms: `medium`, `devto`, `hashnode`, `wechat`, `juejin`. Present the guide to the user alongside the formatted output.
+
+### Post-Polish Analysis
+
+After all formatting is complete, assess influence potential and generate SEO data:
+
+```bash
+# Predict reach/impact (0-10 across novelty, SEO, social, audience, timing)
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-influence-score verbose
+
+# Generate OpenGraph, meta tags, JSON-LD, keyword density
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-seo-metadata verbose
+```
 
 Run publish readiness check:
 ```bash
 bash "$SKILL_DIR/scripts/publish-check.sh" "$PROJECT_DIR"
 ```
 
-**Final checkpoint:** Present both versions, platform outputs, social package, quality score, influence score, and publish readiness.
-
-Show progress:
 ```bash
-bash "$SKILL_DIR/scripts/progress-display.sh" "$PROJECT_DIR"
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
+**Final checkpoint:** Present all versions, social package, quality score, influence score, SEO metadata, and publish readiness.
 "Article complete! Quality: X/10. Influence: Y/10. Review all versions. Any adjustments?"
 
 ### Completion
@@ -414,12 +442,26 @@ After user approves:
 ```bash
 bash "$SKILL_DIR/scripts/taste-memory.sh" update "$PROJECT_DIR"
 bash "$SKILL_DIR/scripts/pipeline-state.sh" complete "$PROJECT_DIR"
+```
+
+If the user edited the draft manually, learn from their changes:
+```bash
+bash "$SKILL_DIR/scripts/taste-memory.sh" diff-learn "$PROJECT_DIR/.essay-state/draft-v1.md" "$PROJECT_DIR/.essay-state/draft-v1-edited.md"
+```
+
+Record explicit user feedback with category tagging:
+```bash
+bash "$SKILL_DIR/scripts/taste-memory.sh" feedback <category> "<text>"
+# Categories: tone, structure, vocabulary, length, code_density, format
+```
+
+```bash
 bash "$SKILL_DIR/scripts/expertise-graph.sh" update "<topic>" "<tag1> <tag2>"
 ```
 
 Show publishing guides for chosen platforms:
 ```bash
-bash "$SKILL_DIR/scripts/publishing-guide.sh" <platform>
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" publishing-guide <platform>
 ```
 
 After publishing, register the article and record analytics:
@@ -427,6 +469,19 @@ After publishing, register the article and record analytics:
 bash "$SKILL_DIR/scripts/cross-reference.sh" add "<title>" "<published_url>" "<tag1> <tag2>"
 bash "$SKILL_DIR/scripts/analytics-feedback.sh" record "$PROJECT_DIR" "<url>" "<platform>"
 ```
+
+**Analytics feedback loop:** When the user shares performance data later, track it and feed insights back into taste memory:
+```bash
+# Record metrics (views, shares, comments, etc.)
+bash "$SKILL_DIR/scripts/analytics-feedback.sh" track "<article_id>" views=N shares=N
+
+# Feed performance insights into taste memory for future articles
+bash "$SKILL_DIR/scripts/analytics-feedback.sh" feed-taste
+
+# Show performance trends and analytics summary
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-analytics-summary
+```
+Analytics insights are auto-injected into writer and reviewer prompts via `build-analytics-insights`.
 
 ## Series Support
 
@@ -457,17 +512,10 @@ Config values auto-apply to new pipelines (language, max refinement rounds, defa
 
 If invoked with "resume":
 ```bash
-STAGE=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" next-stage)
-bash "$SKILL_DIR/scripts/progress-display.sh" "$PROJECT_DIR"
+STAGE=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" resume)
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
-Show current progress, then jump to that stage's execution block above.
-
-State checkpoints are saved automatically at each stage transition.
-To restore a previous state:
-```bash
-bash "$SKILL_DIR/scripts/checkpoint.sh" list "$PROJECT_DIR"
-bash "$SKILL_DIR/scripts/checkpoint.sh" restore "$PROJECT_DIR" "<checkpoint_id>"
-```
+The `resume` command detects the current pipeline state, reports the stage and what's completed, and tells you what to do next. Show progress, then jump to that stage's execution block above.
 
 ## Error Handling
 
@@ -477,7 +525,19 @@ bash "$SKILL_DIR/scripts/checkpoint.sh" restore "$PROJECT_DIR" "<checkpoint_id>"
 - Refinement doesn't converge in 3 rounds → present best version with reviewer caveats
 - Any agent fails to write output file → read agent response, write file yourself
 - Code validation fails → fix code blocks before advancing to review
-- Pipeline interrupted → use resume support with checkpoint restore
+- Pipeline interrupted → use checkpoint system to recover:
+
+**Checkpoint system:** State is saved automatically at every stage transition via `pipeline-state.sh`.
+```bash
+# List all saved checkpoints
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" list-checkpoints
+
+# Rollback to a specific checkpoint
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" rollback <checkpoint_id>
+
+# Retry a failed stage from scratch
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" retry-stage <stage>
+```
 
 ## Boundaries
 

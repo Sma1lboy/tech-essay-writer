@@ -156,6 +156,105 @@ assert_contains "get-preference returns tone" "casual" "$pref"
 out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" history)
 assert_contains "empty history" "No articles" "$out"
 
+# --- diff-learn tests ---
+
+echo "--- diff-learn ---"
+
+DRAFT_FILE="$TMPDIR/draft.md"
+EDITED_FILE="$TMPDIR/edited.md"
+
+cat > "$DRAFT_FILE" << 'DRAFTEOF'
+# Introduction
+
+This is a very long and verbose introduction that goes on and on about the topic at hand.
+It contains many unnecessary words and filler content that does not add value.
+
+## Technical Details
+
+The system utilizes a microservices architecture paradigm.
+One must consider the implications of distributed computing.
+
+## Conclusion
+
+In conclusion, we have demonstrated the key points.
+DRAFTEOF
+
+cat > "$EDITED_FILE" << 'EDITEOF'
+# Introduction
+
+This intro gets straight to the point.
+
+## Technical Details
+
+The system uses microservices.
+
+## How It Works
+
+Step-by-step breakdown here.
+
+## Conclusion
+
+We covered the key points. Try it yourself.
+EDITEOF
+
+DIFF_PROJECT="$TMPDIR/diff-project"
+mkdir -p "$DIFF_PROJECT"
+
+out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" diff-learn "$DIFF_PROJECT" "$DRAFT_FILE" "$EDITED_FILE")
+assert_contains "diff-learn shows deletions" "deletions\|-" "$out"
+assert_contains "diff-learn shows additions" "additions\|+" "$out"
+assert_contains "diff-learn shows replacements" "replacement\|~" "$out"
+
+# Verify learned_patterns stored in taste memory
+taste_json=$(cat "$HOME/.tech-essay-writer/taste-memory.json")
+assert_contains "learned_patterns in taste" "learned_patterns" "$taste_json"
+assert_contains "project recorded" "$DIFF_PROJECT" "$taste_json"
+assert_contains "insights recorded" "insights" "$taste_json"
+assert_contains "diff_stats recorded" "diff_stats" "$taste_json"
+
+# Verify insights detect concise preference
+assert_contains "detects concise preference" "concise" "$taste_json"
+
+# Verify insights detect heading changes
+assert_contains "detects heading change" "section" "$taste_json"
+
+# Read shows learned patterns
+out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" read)
+assert_contains "read shows learned patterns" "Learned patterns" "$out"
+assert_contains "read shows insight" "concise\|project" "$out"
+
+# Error: missing file
+out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" diff-learn "$DIFF_PROJECT" "/nonexistent/file" "$EDITED_FILE" 2>&1 || true)
+assert_contains "diff-learn error on missing draft" "not found" "$out"
+
+# --- feedback tests ---
+
+echo "--- feedback ---"
+
+bash "$SCRIPT_DIR/scripts/taste-memory.sh" feedback "$DIFF_PROJECT" tone "prefer conversational over formal" >/dev/null
+out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" feedback "$DIFF_PROJECT" structure "shorter paragraphs")
+assert_contains "feedback confirms recording" "Feedback recorded" "$out"
+assert_contains "feedback shows category" "structure" "$out"
+
+bash "$SCRIPT_DIR/scripts/taste-memory.sh" feedback "$DIFF_PROJECT" vocabulary "avoid jargon" >/dev/null
+
+# Verify explicit_preferences stored
+taste_json=$(cat "$HOME/.tech-essay-writer/taste-memory.json")
+assert_contains "explicit_preferences in taste" "explicit_preferences" "$taste_json"
+assert_contains "tone feedback stored" "conversational" "$taste_json"
+assert_contains "structure feedback stored" "shorter paragraphs" "$taste_json"
+assert_contains "vocabulary feedback stored" "avoid jargon" "$taste_json"
+assert_contains "category field stored" "\"category\"" "$taste_json"
+assert_contains "timestamp in feedback" "timestamp" "$taste_json"
+
+# Read shows explicit preferences
+out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" read)
+assert_contains "read shows explicit preferences" "Explicit preferences" "$out"
+assert_contains "read shows tone category" "tone" "$out"
+assert_contains "read shows structure category" "structure" "$out"
+assert_contains "read shows vocabulary category" "vocabulary" "$out"
+assert_contains "read shows feedback text" "conversational" "$out"
+
 # --- aggregate-reviews.sh tests ---
 
 echo "=== aggregate-reviews.sh ==="
