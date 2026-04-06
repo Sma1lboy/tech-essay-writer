@@ -77,6 +77,41 @@ End every article with a QR code call-to-action section:
 - Code comments should be in Chinese where helpful
 - Use Chinese punctuation: 。，、；：""''（）
 
+### WeChat Platform Gotchas and Limits
+- **Title**: max 64 Chinese characters. WeChat truncates at ~35 chars in the subscription list preview on mobile. Front-load the hook.
+- **Abstract (摘要)**: max 120 Chinese characters. Shown in the subscription list below the title. This is your "ad copy" — make every character count.
+- **External links**: COMPLETELY BLOCKED in article body. The ONLY external link allowed is the "阅读原文" (Read Original) button at the bottom. Use this for your most important link (usually the article's canonical URL or a GitHub repo).
+- **Internal links**: you CAN link to other articles within the SAME WeChat Official Account. Use this for series navigation and cross-promotion.
+- **Article length**: WeChat does not enforce a hard limit, but the reading experience degrades significantly past 5000 Chinese characters. Readers are on mobile and will abandon long articles. Aim for 2000-4000 characters.
+- **Images**:
+  - ALL images must be uploaded to WeChat's CDN via the editor. External image URLs are BLOCKED.
+  - Max file size: 10MB per image
+  - Recommended width: 900px (WeChat auto-compresses and resizes)
+  - GIFs are supported but keep under 2MB for smooth loading on mobile data
+  - WeChat strips EXIF data from uploaded images
+- **Code blocks**:
+  - WeChat's editor has a built-in code block feature that is limited
+  - For better formatting, use the inline CSS `<pre><code>` approach in the template above
+  - Long code blocks: WeChat does NOT support horizontal scrolling well. Keep code lines under 60 characters or the code will wrap awkwardly.
+  - Consider using code screenshots for complex examples (upload as images)
+- **Inline CSS**:
+  - WeChat strips ALL external stylesheets and `<style>` tags
+  - Only inline `style=""` attributes on individual elements survive
+  - Some CSS properties are partially supported or behave differently:
+    - `position: fixed/sticky` does NOT work
+    - `flexbox` has partial support
+    - `grid` is NOT supported
+    - `transform` and `animation` have very limited support
+  - Fonts: WeChat uses the system font. Custom font imports are ignored.
+- **Third-party editing tools**: Many authors use tools like 135editor (135编辑器), Xiumi (秀米), or Markdown Nice to convert Markdown to WeChat-compatible HTML. If using these, note it in the output so the author knows the workflow.
+- **Publishing schedule**: WeChat allows subscription accounts to post once per day. Service accounts can post 4 times per month. Plan accordingly.
+- **Distribution**: WeChat articles spread primarily through:
+  - 朋友圈 (Moments) sharing — the article's cover image and title are critical here
+  - 群聊 (Group chats) forwarding — the abstract is what people see before clicking
+  - 搜一搜 (Search) — WeChat's built-in search indexes articles; optimize for Chinese keywords
+- **Analytics**: WeChat provides detailed analytics (阅读量, 分享数, 收藏数). Track these to inform future article strategy.
+- **Comments**: WeChat comments must be manually approved by the account admin. Prepare suggested reply templates for common questions.
+
 ## Language
 
 This adapter ALWAYS outputs in Chinese regardless of the language directive. This is because WeChat Official Account content targets a Chinese-speaking audience.

@@ -82,6 +82,27 @@ enableToc: true
 - Include relevant cross-links to other articles
 - Encourage reactions (Hashnode has emoji reactions)
 
+### Hashnode Platform Gotchas and Limits
+- **Title**: no hard character limit, but titles over 80 chars get truncated in feed cards and social shares
+- **Slug**: auto-generated from title but can be customized. Keep under 60 chars, use hyphens, no special characters. Once published, changing the slug breaks existing links.
+- **Tags**: max 5 tags. Use existing popular Hashnode tags when possible (check hashnode.com/tags). Custom tags are allowed but get less discovery.
+- **Cover image**: 1600x840px recommended (roughly 2:1 ratio). Hashnode CDN auto-optimizes but very large files (>5MB) may timeout on upload.
+- **Subtitle**: appears below the title on the article page and in some feed cards. Keep under 140 characters. Use it to add context the title cannot.
+- **ToC auto-generation**: `enableToc: true` generates a sidebar ToC from H2 and H3 headings. Ensure heading text is concise (under 60 chars) for clean sidebar display. H4 and deeper are not included in the ToC.
+- **Code blocks**: Hashnode uses PrismJS for syntax highlighting. Supported languages include all popular ones, but niche languages may fall back to plain text. Add a filename label above the code block for clarity.
+- **Markdown flavor**: Hashnode supports standard Markdown plus:
+  - Embedded tweets (paste URL on its own line)
+  - YouTube embeds (paste URL on its own line)
+  - CodePen/CodeSandbox embeds (paste URL on its own line)
+  - Footnotes are NOT supported
+  - Math/LaTeX via KaTeX (wrap in `$$` for block, `$` for inline)
+- **Custom CSS**: Hashnode Pro allows custom CSS. Standard accounts cannot customize styling.
+- **Canonical URL**: set `canonical` in frontmatter when cross-posting. Hashnode respects this for SEO.
+- **Newsletter integration**: Hashnode has built-in newsletter. Subscribers get notified of new posts. Position the newsletter CTA as a value-add, not a generic "subscribe" plea.
+- **SEO**: Hashnode generates meta tags automatically from frontmatter. The `subtitle` field becomes the meta description if no explicit description is set.
+- **Series**: articles in a series get a navigation bar at the top. Series names must match exactly.
+- **Reading time**: auto-calculated. No manual override.
+
 ## Language
 
 Follow the language directive provided by the conductor. If writing in Chinese:

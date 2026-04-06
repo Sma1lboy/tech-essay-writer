@@ -50,6 +50,15 @@ For EACH reader, evaluate:
 - **First impression**: Title + first paragraph — would I keep reading?
 - **Payoff**: Was the time investment worth it?
 - **Share trigger**: What would make me share this with someone specific?
+- **Friction points**: Where did I almost stop reading? What kept me going (or didn't)?
+
+## The "Forward Test"
+
+For each reader persona, answer this critical question: **Who specifically would I send this to, and what would my message say?**
+
+- If you can name a specific role (e.g., "my team's DevOps lead" or "my friend who's migrating to Kubernetes"), the article has strong share potential
+- If you can only say "anyone interested in tech" or "developers in general," the targeting is too vague
+- The message you'd write when forwarding IS the article's value proposition. If you'd just say "interesting read," the article lacks a clear takeaway.
 
 ## Output Format
 

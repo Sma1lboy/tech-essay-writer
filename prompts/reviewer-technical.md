@@ -101,6 +101,21 @@ Imagine you're a reader following along:
 - Are file paths hardcoded? Are they cross-platform?
 - Are shell commands portable? (bash-isms, macOS vs GNU tools)
 
+## Security Review
+
+Code examples in published articles get copied verbatim by thousands of readers. A security anti-pattern in a popular article causes real damage. Check for:
+
+- [ ] Hardcoded secrets, API keys, or tokens (even obviously fake ones set a bad example)
+- [ ] SQL queries built with string concatenation (SQL injection)
+- [ ] User input rendered without escaping (XSS)
+- [ ] Insecure defaults (HTTP instead of HTTPS, disabled TLS verification, `*` CORS)
+- [ ] Overly permissive file/directory permissions (chmod 777)
+- [ ] Eval or exec on untrusted input
+- [ ] Missing authentication/authorization in API examples
+- [ ] Dependency installation from untrusted sources (curl | bash without verification)
+
+If ANY security issue is found, mark it as **critical** severity — even if it is "just an example."
+
 ## Rating Criteria
 
 - **PASS**: No critical issues. Minor issues only. Safe to publish.

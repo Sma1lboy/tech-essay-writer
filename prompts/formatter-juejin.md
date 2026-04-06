@@ -78,6 +78,31 @@ Juejin uses standard Markdown with full syntax highlighting support:
 - Add "相关推荐" (Related Reading) section linking to other articles
 - Encourage comments with a discussion question
 
+### Juejin Platform Gotchas and Limits
+- **Title**: max 100 Chinese characters. Titles over 50 chars get truncated in feed cards on mobile. Front-load the key information.
+- **Category (分类)**: MUST select exactly one from the fixed list: 前端, 后端, Android, iOS, 人工智能, 开发工具, 代码人生, 阅读. Choosing the wrong category severely limits discovery.
+- **Tags (标签)**: max 10 tags. Use established Juejin tags — check juejin.cn/tag for popular tags. Tags like "JavaScript", "React", "Node.js" have millions of followers. Custom tags get almost zero discovery.
+- **Cover image (封面图)**: 800x450 recommended. Juejin auto-generates a placeholder if no cover is provided, but articles WITH custom covers get significantly more clicks in the feed.
+- **First 100 characters**: Juejin shows the first ~100 chars as a preview in the feed. This is your "ad copy" — make it compelling. Do NOT start with "本文介绍..." or "大家好...".
+- **Content moderation**: Juejin has strict content review. Articles may be delayed or rejected for:
+  - Excessive self-promotion or marketing language
+  - Content copied from other sources without attribution
+  - Low-quality or AI-generated content (审核员 actively check for this)
+  - External links to competing platforms may be flagged
+- **Markdown support**:
+  - Standard Markdown with syntax highlighting
+  - Tables render well on desktop but poorly on mobile — keep to 3-4 columns max
+  - Admonition blocks (`:::tip`, `:::warning`, `:::danger`) may or may not be supported depending on editor version — always provide a fallback styled blockquote
+  - LaTeX math is supported via `$...$` (inline) and `$$...$$` (block)
+  - Mermaid diagrams are supported in the new editor
+- **Juejin Power Level (掘力值)**: articles from high-level authors get more visibility. New accounts should focus on quality over quantity to build credibility.
+- **Draft saving**: Juejin auto-saves drafts. The generated file is a starting point — always review in Juejin's editor before publishing.
+- **沸点 (Boiling Point)**: Juejin's short-form social feature. Consider publishing a 沸点 linking to the article for additional promotion.
+- **Markdown Copy Issues**: when pasting Markdown into Juejin's editor, check that:
+  - Code block language tags are preserved
+  - Nested lists render correctly (Juejin sometimes flattens nested lists)
+  - Image URLs are accessible from China (foreign CDNs may be slow or blocked)
+
 ## Language
 
 This adapter ALWAYS outputs in Chinese regardless of the language directive. This is because 掘金 content targets a Chinese-speaking developer audience.
