@@ -178,7 +178,7 @@ assert_eq "next-stage with draft = review" "review" "$stage"
 bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" review >/dev/null
 
 # --- build-review-prompts for each reviewer ---
-for reviewer in technical editor adversarial audience seo; do
+for reviewer in technical editor adversarial audience seo external factcheck; do
   out=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-review-prompts "$reviewer")
   assert_not_empty "review prompt $reviewer is non-empty" "$out"
   assert_contains "review prompt $reviewer has draft" "Test Article" "$out"
@@ -207,9 +207,15 @@ EOF
 cat > "$PROJECT/.essay-state/review-seo.json" << 'EOF'
 {"reviewer":"seo","rating":"NEEDS_WORK","summary":"Title boring","issues":[{"severity":"minor","issue":"Title generic"}]}
 EOF
+cat > "$PROJECT/.essay-state/review-external.json" << 'EOF'
+{"reviewer":"external","rating":"NEEDS_CONTEXT","summary":"Some jargon unexplained","issues":[{"severity":"minor","issue":"Acronym not expanded"}]}
+EOF
+cat > "$PROJECT/.essay-state/review-factcheck.json" << 'EOF'
+{"reviewer":"factcheck","rating":"VERIFIED","summary":"Claims check out","issues":[]}
+EOF
 
 # Mark reviews in pipeline state
-for r in review-technical review-editor review-adversarial review-audience review-seo; do
+for r in review-technical review-editor review-adversarial review-audience review-seo review-external review-factcheck; do
   bash "$SCRIPT_DIR/scripts/pipeline-state.sh" add-review "$PROJECT" "$PROJECT/.essay-state/${r}.json" >/dev/null
 done
 

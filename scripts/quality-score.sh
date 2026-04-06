@@ -15,11 +15,13 @@ verbose = sys.argv[2] == "verbose" if len(sys.argv) > 2 else False
 
 scores = {}
 weights = {
-    "technical": 0.25,
-    "editor": 0.25,
-    "adversarial": 0.20,
-    "audience": 0.15,
-    "seo": 0.15
+    "technical": 0.20,
+    "editor": 0.20,
+    "adversarial": 0.15,
+    "audience": 0.10,
+    "seo": 0.10,
+    "external": 0.10,
+    "factcheck": 0.15
 }
 
 # Rating to score mappings
@@ -33,7 +35,11 @@ rating_scores = {
     # Audience
     "WOULD_SHARE": 9, "MEH": 5, "SKIP": 2,
     # SEO
-    "OPTIMIZED": 9, "NEEDS_WORK": 5, "INVISIBLE": 2
+    "OPTIMIZED": 9, "NEEDS_WORK": 5, "INVISIBLE": 2,
+    # External
+    "CLEAR": 9, "NEEDS_CONTEXT": 5, "INACCESSIBLE": 2,
+    # Factcheck
+    "VERIFIED": 9, "NEEDS_VERIFICATION": 5, "UNRELIABLE": 2
 }
 
 # Read each review
@@ -120,14 +126,14 @@ result = {
     "readiness": readiness,
     "dimension_scores": scores,
     "reviews_available": len(scores),
-    "reviews_expected": 5
+    "reviews_expected": 7
 }
 
 if verbose:
     print(f"\n{'='*40}")
     print(f"Quality Score: {composite}/10 {emoji}")
     print(f"Readiness: {readiness}")
-    print(f"Reviews: {len(scores)}/5")
+    print(f"Reviews: {len(scores)}/7")
     for r, s in sorted(scores.items(), key=lambda x: -x[1]):
         bar = "█" * int(s) + "░" * (10 - int(s))
         print(f"  {r:15s} {bar} {s}")

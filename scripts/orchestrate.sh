@@ -15,7 +15,7 @@ Commands:
   build-research-prompt Build research agent prompt
   build-outline-prompts Build 3 parallel outline agent prompts
   build-writer-prompt   Build writer agent prompt
-  build-review-prompts  Build 5 parallel review agent prompts
+  build-review-prompts  Build 7 parallel review agent prompts
   build-refiner-prompt  Build refiner agent prompt (with round number)
   build-format-prompts  Build formatter prompts (internal|external|medium|devto|hashnode|wechat|juejin)
   build-social-prompt   Build social media package agent prompt
@@ -115,7 +115,7 @@ print(f'Stage: {stage}')
 print(f'Topic: {topic}')
 print(f'Draft version: {draft_v}')
 print(f'Refinement round: {ref_round}/3')
-print(f'Reviews: {reviews}/5')
+print(f'Reviews: {reviews}/7')
 print(f'Completed: {completed}')
 "
 }
@@ -382,6 +382,8 @@ cmd_build_review_prompts() {
     "adversarial:reviewer-adversarial.md"
     "audience:reviewer-audience.md"
     "seo:reviewer-seo.md"
+    "external:reviewer-external.md"
+    "factcheck:reviewer-factcheck.md"
   )
 
   local template=""

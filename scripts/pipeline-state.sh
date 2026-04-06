@@ -173,8 +173,8 @@ if os.path.exists(review_file):
 else:
     d['reviews'][name] = {'file': review_file, 'rating': 'missing', 'issues_count': 0}
 d['updated_at'] = sys.argv[3]
-# Check if all 5 reviews are in
-if len(d['reviews']) >= 5:
+# Check if all 7 reviews are in
+if len(d['reviews']) >= 7:
     d['review_panel_complete'] = True
 print(json.dumps(d))
 " "$state" "$review_file" "$now")

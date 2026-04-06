@@ -252,7 +252,7 @@ bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" review >/dev/n
 echo "--- Stage 5: Adversarial Review Panel ---"
 
 # Verify all 5 review prompts include the draft
-for reviewer in technical editor adversarial audience seo; do
+for reviewer in technical editor adversarial audience seo external factcheck; do
   prompt=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-review-prompts "$reviewer")
   assert_contains "review-$reviewer has draft content" "Monolith Trap" "$prompt"
 done
@@ -278,14 +278,22 @@ cat > "$PROJECT/.essay-state/review-seo.json" << 'EOF'
 {"reviewer":"seo","rating":"NEEDS_WORK","summary":"Title is too generic for search","title_analysis":{"current_title":"Why Multi-Agent Architecture Beats Monolithic AI","searchability":5,"clickability":7,"alternatives":[{"title":"Multi-Agent vs Monolithic AI: Architecture Patterns That Actually Work","type":"seo"},{"title":"We Replaced Our AI Agent with 3 Smaller Ones (Here's What Happened)","type":"social"},{"title":"The Conductor Pattern: A Production Guide to Multi-Agent AI Systems","type":"newsletter"}]},"social_package":{"meta_description":"Learn the three-layer conductor pattern for building reliable multi-agent AI systems, with production code and real metrics.","twitter_thread":["1/ We replaced our monolithic AI agent with a three-layer system. Completion rate went from 62% to 87%. Here's the architecture:","2/ The key insight: context is a resource. A monolithic agent wastes tokens re-reading instructions for tools it won't use.","3/ Three layers: Conductor (plans), Sprint Master (directs), Worker (executes). Each gets fresh context.","4/ The conductor pattern in code: [code snippet]","5/ Results: 87% completion (up from 62%), zero context overflows, 68% cost reduction. Architecture > model choice."],"linkedin_post":"Most teams build AI agents as monoliths. We did too — until our agent started forgetting instructions mid-task.\n\nThe fix: a three-layer architecture where each agent has a single job and fresh context.\n\nResults: 87% task completion, zero context overflows, 68% cost reduction.\n\nKey insight: treat context like memory in distributed systems — allocate it, don't waste it.","hn_title":"The Conductor Pattern: Multi-Agent Architecture for Reliable AI Systems"}}
 EOF
 
+cat > "$PROJECT/.essay-state/review-external.json" << 'EOF'
+{"reviewer":"external","rating":"NEEDS_CONTEXT","summary":"Some jargon assumes prior knowledge","confidence":"high","first_confusion_point":"The Monolith Trap section","jargon_issues":[{"term":"context pollution","location":"The Monolith Trap","suggestion":"Define context pollution before using it"}],"assumed_knowledge":[{"assumption":"Reader knows what a context window is","location":"Opening","impact":"Core concept unclear","fix":"Add one-sentence explanation"}],"logical_jumps":[],"missing_context":[],"accessibility_score":6,"target_audience_match":"Slightly above stated audience level","issues":[{"severity":"minor","issue":"Context window not defined for newcomers"}]}
+EOF
+
+cat > "$PROJECT/.essay-state/review-factcheck.json" << 'EOF'
+{"reviewer":"factcheck","rating":"NEEDS_VERIFICATION","summary":"Most claims check out but metrics lack methodology","confidence":"medium","claims_checked":8,"claims_verified":5,"claims_unverified":2,"claims_wrong":1,"issues":[{"severity":"major","claim":"87% completion rate","location":"Production Implementation","verdict":"unverified","evidence":"No methodology described","suggestion":"Add measurement methodology or qualify as anecdotal"},{"severity":"minor","claim":"Breakeven at 3-4 tool calls","location":"Trade-offs","verdict":"unverified","evidence":"No measurement described","suggestion":"Soften to 'in our experience'"}],"code_verification":[{"code_block":"conductor function","syntax_valid":true,"imports_correct":true,"types_correct":true,"would_run":true,"issues":null}],"unverified_claims":[{"claim":"Token cost -68%","reason":"No baseline described","risk":"medium","recommendation":"Qualify or add baseline"}],"opinion_claims":["Architecture is more important than model choice"],"sources_consulted":["https://docs.anthropic.com/en/docs/agents"]}
+EOF
+
 # Register reviews
-for r in review-technical review-editor review-adversarial review-audience review-seo; do
+for r in review-technical review-editor review-adversarial review-audience review-seo review-external review-factcheck; do
   bash "$SCRIPT_DIR/scripts/pipeline-state.sh" add-review "$PROJECT" "$PROJECT/.essay-state/${r}.json" >/dev/null
 done
 
 # Aggregate
 agg_out=$(bash "$SCRIPT_DIR/scripts/aggregate-reviews.sh" "$PROJECT")
-assert_contains "aggregate has 5 reviews" "5" "$(echo "$agg_out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reviews_count"])' 2>/dev/null || echo '5')"
+assert_contains "aggregate has 7 reviews" "7" "$(echo "$agg_out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reviews_count"])' 2>/dev/null || echo '7')"
 assert_file "panel summary exists" "$PROJECT/.essay-state/review-panel-summary.json"
 
 # Verify panel summary

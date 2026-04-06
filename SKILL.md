@@ -51,7 +51,7 @@ Once you have a direction, **stop talking and start executing**.
 ## Pipeline Architecture
 
 ```
-INTAKE → RESEARCH → OUTLINE (3 variants) → DRAFT → REVIEW (5 agents) → REFINE (loop) → POLISH (2 formats)
+INTAKE → RESEARCH → OUTLINE (3 variants) → DRAFT → REVIEW (7 agents) → REFINE (loop) → POLISH (2 formats)
 ```
 
 You are the **conductor**. You don't write the article yourself — you dispatch
@@ -194,9 +194,9 @@ bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" draft_versi
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" review
 ```
 
-### Stage 5: ADVERSARIAL REVIEW PANEL (5 Parallel Agents)
+### Stage 5: ADVERSARIAL REVIEW PANEL (7 Parallel Agents)
 
-This is the core quality mechanism. Launch 5 independent reviewers in parallel.
+This is the core quality mechanism. Launch 7 independent reviewers in parallel.
 Each gets FRESH CONTEXT — no knowledge of other reviewers.
 
 ```bash
@@ -205,15 +205,19 @@ PROMPT_EDIT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DI
 PROMPT_ADV=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts adversarial)
 PROMPT_AUD=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts audience)
 PROMPT_SEO=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts seo)
+PROMPT_EXT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts external)
+PROMPT_FC=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts factcheck)
 ```
 
-Launch ALL FIVE via Agent tool in a SINGLE message:
+Launch ALL SEVEN via Agent tool in a SINGLE message:
 ```
 Agent(description="Technical review", prompt=PROMPT_TECH)
 Agent(description="Editorial review", prompt=PROMPT_EDIT)
 Agent(description="Adversarial review", prompt=PROMPT_ADV)
 Agent(description="Audience proxy review", prompt=PROMPT_AUD)
 Agent(description="SEO/reach review", prompt=PROMPT_SEO)
+Agent(description="External perspective review", prompt=PROMPT_EXT)
+Agent(description="Fact-checking review", prompt=PROMPT_FC)
 ```
 
 After all complete, aggregate and score:

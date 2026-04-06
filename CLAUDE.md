@@ -4,11 +4,11 @@ Multi-agent tech article writing skill for Claude Code.
 
 ## Architecture
 
-7-stage pipeline: Intake → Research → Outline (3 variants) → Draft → Review (5 agents) → Refine (loop) → Polish (2 formats)
+7-stage pipeline: Intake → Research → Outline (3 variants) → Draft → Review (7 agents) → Refine (loop) → Polish (2 formats)
 
 Key patterns:
 - **Design-shotgun** (from gstack): 3 parallel outline variants with no cross-influence
-- **Adversarial review panel**: 5 independent reviewers with fresh context each
+- **Adversarial review panel**: 7 independent reviewers with fresh context each
 - **Refinement loop**: challenge → fix → re-challenge (max 3 rounds)
 - **Taste memory**: persistent style preferences across sessions
 - **Cross-reference**: track published articles for internal linking
@@ -23,7 +23,7 @@ scripts/
   orchestrate.sh            # Pipeline orchestrator — prompt builders + stage control
   pipeline-state.sh         # Pipeline state management (atomic writes)
   intake-materials.sh       # Material intake (URL/note/file/code/theme/angle)
-  aggregate-reviews.sh      # Aggregate 5 review results into panel summary
+  aggregate-reviews.sh      # Aggregate 7 review results into panel summary
   build-agent-prompt.sh     # Generic prompt builder with context injection
   taste-memory.sh           # Persistent writing style preferences
   cross-reference.sh        # Published article registry
@@ -40,6 +40,8 @@ prompts/
   reviewer-adversarial.md   # Devil's advocate (adversarial)
   reviewer-audience.md      # Target audience proxy (internal + external)
   reviewer-seo.md           # SEO/reach optimizer
+  reviewer-external.md      # External perspective (fresh-eyes accessibility)
+  reviewer-factcheck.md     # Fact-checking (claim verification)
   refiner.md                # Refinement agent
   formatter-internal.md     # Internal format adapter
   formatter-external.md     # External format adapter + social
