@@ -278,13 +278,51 @@ Output files:
 - `.essay-state/final-external.md` — blog/social publication version  
 - `.essay-state/social-package.json` — Twitter thread, LinkedIn post, HN title
 
+### Platform-Specific Adapters (Optional)
+
+After generating the internal/external versions, ask the user which publishing platforms to target:
+
+```bash
+# List available platforms:
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" list-platforms
+```
+
+Available platforms: `medium`, `devto`, `hashnode`, `wechat`, `juejin`
+
+Ask: "Which platforms should I format for? (medium, dev.to, Hashnode, WeChat公众号, 掘金 — or skip)"
+
+For each chosen platform, build and dispatch in parallel:
+```bash
+PROMPT_MEDIUM=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts medium)
+PROMPT_DEVTO=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts devto)
+PROMPT_HASHNODE=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts hashnode)
+PROMPT_WECHAT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts wechat)
+PROMPT_JUEJIN=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts juejin)
+```
+
+Launch selected adapters via Agent tool in a SINGLE message (parallel execution):
+```
+Agent(description="Format Medium version", prompt=PROMPT_MEDIUM)
+Agent(description="Format dev.to version", prompt=PROMPT_DEVTO)
+Agent(description="Format Hashnode version", prompt=PROMPT_HASHNODE)
+Agent(description="Format WeChat version", prompt=PROMPT_WECHAT)
+Agent(description="Format Juejin version", prompt=PROMPT_JUEJIN)
+```
+
+Platform output files:
+- `.essay-state/final-medium.md` — Medium paste-ready version
+- `.essay-state/final-devto.md` — dev.to with liquid tag frontmatter
+- `.essay-state/final-hashnode.md` — Hashnode with YAML frontmatter
+- `.essay-state/final-wechat.md` — WeChat公众号 inline-CSS HTML version (Chinese)
+- `.essay-state/final-juejin.md` — 掘金 Markdown version (Chinese)
+
 Run publish readiness check:
 ```bash
 bash "$SKILL_DIR/scripts/publish-check.sh" "$PROJECT_DIR"
 ```
 
-**Final checkpoint:** Present both versions, social package, and publish readiness.
-"Article complete! Quality score: X/10. Review both versions. Any adjustments?"
+**Final checkpoint:** Present both versions, platform outputs, social package, and publish readiness.
+"Article complete! Quality score: X/10. Review all versions. Any adjustments?"
 
 ### Completion
 

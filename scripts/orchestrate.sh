@@ -17,7 +17,8 @@ Commands:
   build-writer-prompt   Build writer agent prompt
   build-review-prompts  Build 5 parallel review agent prompts
   build-refiner-prompt  Build refiner agent prompt (with round number)
-  build-format-prompts  Build internal+external formatter prompts
+  build-format-prompts  Build formatter prompts (internal|external|medium|devto|hashnode|wechat|juejin)
+  list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
 EOF
 }
@@ -478,8 +479,18 @@ $(build_language_directive)
 PROMPT_END
 }
 
+cmd_list_platforms() {
+  echo "internal"
+  echo "external"
+  echo "medium"
+  echo "devto"
+  echo "hashnode"
+  echo "wechat"
+  echo "juejin"
+}
+
 cmd_build_format_prompts() {
-  local format="${1:?format internal|external required}"
+  local format="${1:?format internal|external|medium|devto|hashnode|wechat|juejin required}"
   local draft_path
   draft_path=$(latest_draft)
   local draft_content=""
@@ -488,14 +499,19 @@ cmd_build_format_prompts() {
   fi
 
   local template
-  if [ "$format" = "internal" ]; then
-    template="formatter-internal.md"
-  elif [ "$format" = "external" ]; then
-    template="formatter-external.md"
-  else
-    echo "ERROR: Unknown format: $format" >&2
-    return 1
-  fi
+  case "$format" in
+    internal)  template="formatter-internal.md" ;;
+    external)  template="formatter-external.md" ;;
+    medium)    template="formatter-medium.md" ;;
+    devto)     template="formatter-devto.md" ;;
+    hashnode)   template="formatter-hashnode.md" ;;
+    wechat)    template="formatter-wechat.md" ;;
+    juejin)    template="formatter-juejin.md" ;;
+    *)
+      echo "ERROR: Unknown format: $format" >&2
+      return 1
+      ;;
+  esac
 
   local seo_review
   seo_review=$(read_if_exists "$STATE_DIR/review-seo.json")
@@ -592,6 +608,7 @@ case "$CMD" in
   build-review-prompts) cmd_build_review_prompts "$@" ;;
   build-refiner-prompt) cmd_build_refiner_prompt "$@" ;;
   build-format-prompts) cmd_build_format_prompts "$@" ;;
+  list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
   *) usage; exit 1 ;;
 esac

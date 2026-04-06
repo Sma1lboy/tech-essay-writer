@@ -252,6 +252,23 @@ for fmt in internal external; do
   assert_contains "format prompt $fmt has draft" "Test Article" "$out"
 done
 
+# --- Platform format adapters ---
+for platform in medium devto hashnode wechat juejin; do
+  out=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-format-prompts "$platform")
+  assert_not_empty "format prompt $platform is non-empty" "$out"
+  assert_contains "format prompt $platform has draft" "Test Article" "$out"
+done
+
+# --- list-platforms ---
+platforms=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" list-platforms)
+assert_contains "list-platforms has internal" "internal" "$platforms"
+assert_contains "list-platforms has external" "external" "$platforms"
+assert_contains "list-platforms has medium" "medium" "$platforms"
+assert_contains "list-platforms has devto" "devto" "$platforms"
+assert_contains "list-platforms has hashnode" "hashnode" "$platforms"
+assert_contains "list-platforms has wechat" "wechat" "$platforms"
+assert_contains "list-platforms has juejin" "juejin" "$platforms"
+
 # --- Invalid format ---
 if bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-format-prompts "invalid" 2>/dev/null; then
   FAIL=$((FAIL + 1)); echo "FAIL: should reject invalid format"

@@ -336,6 +336,18 @@ for fmt in internal external; do
   assert_contains "format $fmt has SEO data" "social_package" "$prompt"
 done
 
+# Platform-specific format adapters
+for platform in medium devto hashnode wechat juejin; do
+  prompt=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-format-prompts "$platform")
+  assert_contains "platform $platform has draft" "Monolith Trap" "$prompt"
+  assert_contains "platform $platform has SEO data" "social_package" "$prompt"
+done
+
+# list-platforms command
+platforms=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" list-platforms)
+assert_contains "list-platforms includes all platforms" "medium" "$platforms"
+assert_contains "list-platforms includes juejin" "juejin" "$platforms"
+
 # Simulate formatter outputs
 cat > "$PROJECT/.essay-state/final-internal.md" << 'EOF'
 # Why Multi-Agent Architecture Beats Monolithic AI

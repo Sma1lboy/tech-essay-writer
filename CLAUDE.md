@@ -39,6 +39,11 @@ prompts/
   refiner.md                # Refinement agent
   formatter-internal.md     # Internal format adapter
   formatter-external.md     # External format adapter + social
+  formatter-medium.md       # Medium platform adapter
+  formatter-devto.md        # dev.to platform adapter
+  formatter-hashnode.md     # Hashnode platform adapter
+  formatter-wechat.md       # WeChat公众号 platform adapter (Chinese)
+  formatter-juejin.md       # 掘金 platform adapter (Chinese)
 templates/
   tutorial.md               # Tutorial article structure
   deep-dive.md              # Deep dive article structure
@@ -65,6 +70,11 @@ During execution, `.essay-state/` contains:
 - `refinement-{N}-changes.json` — change logs per round
 - `final-internal.md` — company publication version
 - `final-external.md` — external publication version
+- `final-medium.md` — Medium platform version
+- `final-devto.md` — dev.to platform version
+- `final-hashnode.md` — Hashnode platform version
+- `final-wechat.md` — WeChat公众号 platform version
+- `final-juejin.md` — 掘金 platform version
 - `social-package.json` — social media snippets
 
 ## Conventions
