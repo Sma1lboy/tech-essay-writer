@@ -30,340 +30,270 @@ if [ ! -d "$SKILL_DIR/scripts" ]; then
     if [ -d "$dir/scripts" ]; then SKILL_DIR="$dir"; break; fi
   done
 fi
+PROJECT_DIR="$(pwd)"
 echo "SKILL_DIR=$SKILL_DIR"
-echo "PROJECT_DIR=$(pwd)"
+echo "PROJECT_DIR=$PROJECT_DIR"
 
-# Initialize essay state directory
+# Initialize state
 mkdir -p .essay-state
-echo "Tech Essay Writer ready."
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" status 2>/dev/null || echo "Fresh start."
 ```
 
-## First Actions
+## CRITICAL: Act Immediately
 
-When invoked, immediately:
-1. Run Startup bash block
-2. Check if user provided materials/direction in args
-3. If yes → confirm in one sentence, begin Pipeline
-4. If no → ask: "What topic should we write about? Share any materials (links, notes, code, papers)."
+1. Run Startup block
+2. If args contain a topic → confirm, begin Stage 1
+3. If args say "resume" → check status, resume from current stage
+4. If no args → ask ONE question: "What should we write about? Share any materials."
 
-## Pipeline Overview
+Once you have a direction, **stop talking and start executing**.
 
-The pipeline has 7 stages. Each produces artifacts in `.essay-state/`.
-The conductor (you) orchestrates agents for each stage.
+## Pipeline Architecture
 
 ```
-┌─────────┐   ┌───────────┐   ┌──────────┐   ┌─────────┐
-│ INTAKE   │──▶│ RESEARCH  │──▶│ OUTLINE  │──▶│  DRAFT  │
-│ & PARSE  │   │ SYNTHESIS │   │ VARIANTS │   │  WRITE  │
-└─────────┘   └───────────┘   └──────────┘   └─────────┘
-                                                   │
-                              ┌─────────────────────┘
-                              ▼
-┌──────────────────────────────────────────────────────────┐
-│            ADVERSARIAL REVIEW PANEL                      │
-│  ┌────────┐ ┌────────┐ ┌──────────┐ ┌────────┐ ┌──────┐│
-│  │TECH    │ │EDITOR  │ │DEVIL'S   │ │AUDIENCE│ │SEO/  ││
-│  │REVIEW  │ │/STYLE  │ │ADVOCATE  │ │PROXY   │ │REACH ││
-│  └────────┘ └────────┘ └──────────┘ └────────┘ └──────┘│
-└──────────────────────────┬───────────────────────────────┘
-                           │
-                           ▼
-                    ┌──────────────┐
-                    │  REFINEMENT  │◀──┐
-                    │    LOOP      │───┘ (max 3 rounds)
-                    └──────┬───────┘
-                           │
-              ┌────────────┴────────────┐
-              ▼                         ▼
-     ┌────────────────┐      ┌────────────────┐
-     │   INTERNAL     │      │   EXTERNAL     │
-     │   VERSION      │      │   VERSION      │
-     │ (company pub)  │      │ (blog/social)  │
-     └────────────────┘      └────────────────┘
+INTAKE → RESEARCH → OUTLINE (3 variants) → DRAFT → REVIEW (5 agents) → REFINE (loop) → POLISH (2 formats)
 ```
 
-## Stage 1: INTAKE & PARSE
+You are the **conductor**. You don't write the article yourself — you dispatch
+agents for each stage, evaluate their output, and advance the pipeline.
 
-Collect and structure the user's raw materials.
+## How to Execute Each Stage
 
-**Input:** User provides any combination of:
-- URLs (articles, docs, repos)
-- Code snippets
-- Personal notes / bullet points
-- Academic papers
-- Screenshots / diagrams
-- Prior conversations or meeting notes
+### Stage 1: INTAKE
 
-**Process:**
-1. For URLs: use WebFetch to retrieve content, extract key sections
-2. For code: analyze structure, key patterns, novel approaches
-3. For notes: parse into structured themes
-4. Save structured materials to `.essay-state/materials.json`
+Collect the user's raw materials. For each material the user provides:
+
+- **URLs**: Use WebFetch to retrieve content, then:
+  ```bash
+  bash "$SKILL_DIR/scripts/intake-materials.sh" add-url "$PROJECT_DIR" "<url>" "<title>"
+  ```
+- **Notes/ideas**: 
+  ```bash
+  bash "$SKILL_DIR/scripts/intake-materials.sh" add-note "$PROJECT_DIR" "<note text>"
+  ```
+- **Files**: 
+  ```bash
+  bash "$SKILL_DIR/scripts/intake-materials.sh" add-file "$PROJECT_DIR" "<path>"
+  ```
+- **Code snippets**: 
+  ```bash
+  bash "$SKILL_DIR/scripts/intake-materials.sh" add-code "$PROJECT_DIR" "<code>" "<lang>"
+  ```
+
+After collecting all materials, analyze them yourself to extract themes and angles:
+```bash
+bash "$SKILL_DIR/scripts/intake-materials.sh" add-theme "$PROJECT_DIR" "<theme>"
+bash "$SKILL_DIR/scripts/intake-materials.sh" add-angle "$PROJECT_DIR" "<angle>"
+```
+
+For URLs that need fetching, use WebFetch, then update the material with key_points.
+
+**Checkpoint:** Show user the materials summary:
+```bash
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-intake-summary
+```
+Ask: "These are the themes and angles I found. Anything to add or emphasize?"
+
+Then advance:
+```bash
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" research
+```
+
+### Stage 2: RESEARCH SYNTHESIS
+
+Dispatch a research agent with fresh context:
 
 ```bash
-# State tracking
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$(pwd)" intake
+RESEARCH_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-research-prompt)
 ```
 
-**Output:** `.essay-state/materials.json` — structured, indexed materials with:
-- `sources[]` — each source with type, content, key_points
-- `themes[]` — extracted cross-cutting themes
-- `technical_depth` — assessed complexity level
-- `potential_angles[]` — initial narrative angle ideas
-
-**User checkpoint:** Show the extracted themes and angles. Ask:
-"These are the key themes I found. Any angles you want to emphasize? Any materials I missed?"
-
-## Stage 2: RESEARCH SYNTHESIS
-
-Deep analysis of the structured materials to find the story.
-
-**Dispatch:** Launch a research synthesis agent (fresh context):
-
-```markdown
-Agent prompt:
-You are a tech research analyst. Given these structured materials, produce:
-1. A thesis statement — the ONE key insight this article should convey
-2. Supporting evidence map — which materials support which claims
-3. Knowledge gaps — what's missing that would strengthen the argument
-4. Competitive landscape — what has already been written on this topic
-5. Unique angle — what makes THIS article worth reading over existing ones
-
-Materials: [inline from .essay-state/materials.json]
-
-Write your analysis to .essay-state/research-synthesis.json
+Launch via Agent tool:
+```
+Agent(description="Research synthesis", prompt=RESEARCH_PROMPT)
 ```
 
-**User checkpoint:** Present the thesis and unique angle. Ask:
-"Here's the core thesis and angle. Does this direction feel right?"
+The agent will write `.essay-state/research-synthesis.json`.
 
-## Stage 3: OUTLINE GENERATION (Multi-Variant)
+**Checkpoint:** Read the synthesis, present thesis + unique angle to user.
+Ask: "Does this direction feel right?"
 
-Generate 3 competing outline variants in parallel, like gstack's design-shotgun.
+Then advance:
+```bash
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" outline
+```
 
-**Dispatch 3 parallel agents**, each with a different framing:
+### Stage 3: OUTLINE GENERATION (3 Parallel Variants)
 
-| Variant | Framing | Style |
-|---------|---------|-------|
-| A | **Tutorial/How-To** | Step-by-step, practical, code-heavy |
-| B | **Deep Dive/Analysis** | Conceptual, architectural, opinion-rich |
-| C | **Story/Narrative** | Problem→journey→solution, engaging hook |
-
-Each agent receives the research synthesis but generates independently (no cross-influence).
-
-**Output:** `.essay-state/outline-A.json`, `outline-B.json`, `outline-C.json`
-
-Each outline includes:
-- `title` — working title
-- `hook` — opening 2-3 sentences
-- `sections[]` — section title, bullet points, estimated word count
-- `key_code_examples[]` — code blocks to include
-- `target_word_count` — total
-- `tone` — description of voice/style
-
-**User checkpoint:** Present all 3 outlines side-by-side. Ask:
-"Which outline direction do you prefer? (A/B/C, or mix elements)"
-
-## Stage 4: DRAFT WRITING
-
-Full article draft from the chosen outline.
-
-**Dispatch writer agent** with:
-- Chosen outline
-- Research synthesis
-- Raw materials for reference
-- Taste memory (if exists) for style consistency
+Dispatch 3 agents in parallel — each generates a different outline style:
 
 ```bash
-# Load taste memory if available
-TASTE=""
-if [ -f "$HOME/.tech-essay-writer/taste-memory.json" ]; then
-  TASTE=$(cat "$HOME/.tech-essay-writer/taste-memory.json")
-fi
+PROMPT_A=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts A)
+PROMPT_B=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts B)
+PROMPT_C=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts C)
 ```
 
-**Writer agent instructions:**
-- Write the COMPLETE article, not a skeleton
-- Every code example must be real, runnable, tested
-- Use the hook from the outline — don't generic-ify it
-- Match the tone specified in the outline
-- Include section transitions that maintain narrative flow
-- Target word count from outline (±10%)
-
-**Output:** `.essay-state/draft-v1.md` — full article text
-
-## Stage 5: ADVERSARIAL REVIEW PANEL
-
-Launch 5 independent reviewer agents in parallel. Each gets fresh context
-(no knowledge of other reviewers). This is the core quality mechanism.
-
-### Reviewer 1: Technical Accuracy
-```markdown
-You are a senior engineer reviewing a tech article for technical accuracy.
-Your job is to find ERRORS, not to praise. Check:
-- Code correctness (would it compile/run?)
-- Architectural claims (are they sound?)
-- Performance claims (are they benchmarked?)
-- Missing caveats or edge cases
-- Outdated information
-
-Rate: PASS / NEEDS_FIXES / REJECT
-Output: .essay-state/review-technical.json
+Launch ALL THREE via Agent tool in a SINGLE message (parallel execution):
+```
+Agent(description="Outline variant A (Tutorial)", prompt=PROMPT_A)
+Agent(description="Outline variant B (Deep Dive)", prompt=PROMPT_B)
+Agent(description="Outline variant C (Narrative)", prompt=PROMPT_C)
 ```
 
-### Reviewer 2: Editor / Style
-```markdown
-You are a professional tech editor. Check:
-- Clarity: can a mid-level engineer follow this?
-- Flow: do sections connect logically?
-- Hook: does the opening grab attention?
-- Conclusion: does it land with impact?
-- Jargon: is technical language explained or justified?
-- Length: is every paragraph earning its place?
+**IMPORTANT:** These MUST run in parallel with no cross-influence. Each agent
+gets fresh context. This is the design-shotgun pattern from gstack.
 
-Rate: PUBLISH_READY / NEEDS_EDITING / REWRITE
-Output: .essay-state/review-editor.json
+**Checkpoint:** Read all 3 outlines, present side-by-side summary to user.
+Ask: "Which direction? (A/B/C, or mix elements)"
+
+Record the choice:
+```bash
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" outline_variant "<chosen>"
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" draft
 ```
 
-### Reviewer 3: Devil's Advocate (Adversarial)
-```markdown
-You are an adversarial reviewer. Your ONLY job is to challenge and attack.
-- What's the weakest argument in this article?
-- Where would a skeptic push back?
-- What counterexamples exist?
-- Is the author cherry-picking evidence?
-- Does the conclusion follow from the evidence?
-- Would an expert in this field find anything naive?
+### Stage 4: DRAFT WRITING
 
-You are NOT here to be helpful. You are here to break the article.
-If you can't find real issues, say so — don't manufacture fake ones.
-
-Rate: SOLID / VULNERABLE / WEAK
-Output: .essay-state/review-adversarial.json
-```
-
-### Reviewer 4: Target Audience Proxy
-```markdown
-You are two readers in one:
-
-READER A — Internal (company engineer):
-- Would I forward this to my team?
-- Does it teach me something actionable?
-- Is it relevant to our tech stack / problems?
-
-READER B — External (tech community):
-- Would I upvote this on HN/Reddit?
-- Would I share it on Twitter/LinkedIn?
-- Does it add to the conversation or just rehash?
-- Is the author's credibility established?
-
-Rate each reader: WOULD_SHARE / MEH / SKIP
-Output: .essay-state/review-audience.json
-```
-
-### Reviewer 5: SEO / Reach Optimizer
-```markdown
-You are a tech content strategist. Evaluate:
-- Title: is it searchable AND clickable? (not clickbait)
-- Keywords: are target terms naturally woven in?
-- Structure: does it have scannable headers, code blocks, lists?
-- Meta description: can you write a compelling 160-char summary?
-- Social hooks: what would the tweet/LinkedIn post look like?
-- Backlink potential: would other articles link to this?
-
-Generate: 3 alternative title options, meta description, social snippets
-Output: .essay-state/review-seo.json
-```
-
-**After all 5 complete:** Aggregate reviews into `.essay-state/review-panel-summary.json`
-
-**User checkpoint (if any REJECT/REWRITE/WEAK):**
-"The review panel found significant issues: [summary]. Should we proceed with refinement or would you like to adjust the direction?"
-
-## Stage 6: REFINEMENT LOOP
-
-Iterative improvement based on review panel feedback.
-
-**Max 3 rounds.** Each round:
-
-1. **Synthesize** all review feedback into prioritized action items
-2. **Dispatch refinement agent** with:
-   - Current draft
-   - Prioritized issues (most critical first)
-   - Original outline (to prevent scope drift)
-3. **Re-run adversarial reviewer** (Reviewer 3 only) on refined draft
-4. **Check convergence:**
-   - If adversarial reviewer says SOLID → done
-   - If same issues persist after 2 rounds → flag to user, stop loop
-   - If new issues found → another round
+Dispatch the writer agent:
 
 ```bash
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$(pwd)" refinement
-ROUND=1
-MAX_ROUNDS=3
+WRITER_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-writer-prompt "<chosen_variant>")
 ```
 
-**Output:** `.essay-state/draft-v{N}.md` for each round, `.essay-state/refinement-log.json`
+Launch via Agent tool:
+```
+Agent(description="Draft writer", prompt=WRITER_PROMPT)
+```
 
-## Stage 7: DUAL-FORMAT POLISH & OUTPUT
+The agent writes `.essay-state/draft-v1.md`.
 
-Generate two publication-ready versions from the refined draft.
-
-### Internal Version
-- Add company-specific context where relevant
-- Reference internal tools/systems/processes
-- Include "how this applies to us" callouts
-- Format: clean Markdown suitable for internal wiki/docs/Confluence
-
-### External Version
-- Remove any company-specific references
-- Add author bio section
-- Ensure code examples are self-contained
-- Add "About the Author" footer
-- Format: Markdown suitable for dev.to, Medium, personal blog
-
-### Social Media Package
-- Twitter/X thread (5-7 tweets breaking down key insights)
-- LinkedIn post (professional framing, 1-2 paragraphs)
-- HN submission title + comment
-- One-line description for email newsletters
-
-**Output files:**
-- `.essay-state/final-internal.md`
-- `.essay-state/final-external.md`
-- `.essay-state/social-package.json`
-
-**Final user checkpoint:**
-"Article complete! Here are both versions and the social media package.
-Review and let me know if you want any adjustments."
-
-## Taste Memory
-
-After the user approves the final article, update taste memory:
+**Verify:** Read the draft. Check it exists and has reasonable length.
+If < 500 words, re-dispatch with stronger instructions.
 
 ```bash
-mkdir -p "$HOME/.tech-essay-writer"
-bash "$SKILL_DIR/scripts/taste-memory.sh" update "$(pwd)" "$HOME/.tech-essay-writer/taste-memory.json"
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" draft_version 1
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" review
 ```
 
-Record:
-- Preferred outline variant (A/B/C) and why
-- Feedback patterns (what the user consistently changes)
-- Tone preferences
-- Structural preferences (long sections vs short, code-heavy vs narrative)
-- Topics written about (to avoid repetition, build on expertise)
+### Stage 5: ADVERSARIAL REVIEW PANEL (5 Parallel Agents)
 
-## Quick Reference
+This is the core quality mechanism. Launch 5 independent reviewers in parallel.
+Each gets FRESH CONTEXT — no knowledge of other reviewers.
 
-| Command | What it does |
-|---------|-------------|
-| `/tech-essay-writer` | Start new article from scratch |
-| `/tech-essay-writer <topic>` | Start with a topic direction |
-| `/tech-essay-writer resume` | Resume in-progress article from `.essay-state/` |
+```bash
+PROMPT_TECH=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts technical)
+PROMPT_EDIT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts editor)
+PROMPT_ADV=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts adversarial)
+PROMPT_AUD=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts audience)
+PROMPT_SEO=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts seo)
+```
+
+Launch ALL FIVE via Agent tool in a SINGLE message:
+```
+Agent(description="Technical review", prompt=PROMPT_TECH)
+Agent(description="Editorial review", prompt=PROMPT_EDIT)
+Agent(description="Adversarial review", prompt=PROMPT_ADV)
+Agent(description="Audience proxy review", prompt=PROMPT_AUD)
+Agent(description="SEO/reach review", prompt=PROMPT_SEO)
+```
+
+After all complete, aggregate:
+```bash
+bash "$SKILL_DIR/scripts/aggregate-reviews.sh" "$PROJECT_DIR"
+```
+
+Read the panel summary. If any REJECT/REWRITE/WEAK ratings:
+**Checkpoint:** "The review panel found issues: [summary]. Proceed with refinement?"
+
+```bash
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" refinement
+```
+
+### Stage 6: REFINEMENT LOOP (Max 3 Rounds)
+
+For each round:
+
+1. Build refiner prompt:
+```bash
+ROUND=1  # increment each round
+REFINER_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-refiner-prompt $ROUND)
+```
+
+2. Dispatch refiner agent:
+```
+Agent(description="Refinement round N", prompt=REFINER_PROMPT)
+```
+
+3. After refinement, re-run ONLY the adversarial reviewer on the new draft:
+```bash
+PROMPT_ADV=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts adversarial)
+```
+```
+Agent(description="Adversarial re-review", prompt=PROMPT_ADV)
+```
+
+4. Check convergence:
+```bash
+RESULT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" check-convergence $ROUND)
+```
+
+- `CONVERGED` → exit loop, advance to polish
+- `CONTINUE` → increment round, repeat
+- `MAX_ROUNDS` → exit loop with best version
+
+```bash
+bash "$SKILL_DIR/scripts/pipeline-state.sh" refinement-round "$PROJECT_DIR"
+```
+
+### Stage 7: DUAL-FORMAT POLISH
+
+Dispatch 2 parallel format agents:
+
+```bash
+PROMPT_INT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts internal)
+PROMPT_EXT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts external)
+```
+
+Launch in parallel:
+```
+Agent(description="Format internal version", prompt=PROMPT_INT)
+Agent(description="Format external version + social", prompt=PROMPT_EXT)
+```
+
+Output files:
+- `.essay-state/final-internal.md` — company publication version
+- `.essay-state/final-external.md` — blog/social publication version  
+- `.essay-state/social-package.json` — Twitter thread, LinkedIn post, HN title
+
+**Final checkpoint:** Present both versions and social package.
+"Article complete! Review both versions. Any adjustments?"
+
+### Completion
+
+After user approves:
+```bash
+bash "$SKILL_DIR/scripts/taste-memory.sh" update "$PROJECT_DIR"
+bash "$SKILL_DIR/scripts/pipeline-state.sh" complete "$PROJECT_DIR"
+```
+
+## Resume Support
+
+If invoked with "resume":
+```bash
+STAGE=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" next-stage)
+```
+Jump to that stage's execution block above.
 
 ## Error Handling
 
-- If a reviewer agent fails → skip it, note in summary, continue
-- If writer agent produces < 50% target word count → re-dispatch with stronger instructions
-- If all 3 outline variants are too similar → re-dispatch with more divergent framings
-- If refinement loop doesn't converge in 3 rounds → present best version to user with caveats
+- Reviewer agent fails → skip it, note in summary, continue with remaining reviews
+- Writer produces < 500 words → re-dispatch with "The draft is too short. Write the COMPLETE article."
+- All 3 outlines too similar → re-dispatch with explicit differentiation instructions
+- Refinement doesn't converge in 3 rounds → present best version with reviewer caveats
+- Any agent fails to write output file → read agent response, write file yourself
+
+## Boundaries
+
+- Never publish or push content — only generate files for user review
+- Never fabricate technical claims — if materials don't support a claim, flag it
+- Never skip the adversarial review — it's the core quality gate
+- User approves at every checkpoint before advancing
