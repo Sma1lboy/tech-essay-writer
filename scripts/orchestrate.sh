@@ -975,6 +975,8 @@ case "$CMD" in
   build-seo-metadata) cmd_build_seo_metadata "$@" ;;
   build-code-validation) cmd_build_code_validation "$@" ;;
   build-diagram-suggestions) cmd_build_diagram_suggestions "$@" ;;
+  build-series-context) cmd_build_series_context ;;
+  build-analytics-summary) cmd_build_analytics_summary ;;
   list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
   *) usage; exit 1 ;;
