@@ -31,6 +31,8 @@ Commands:
   build-config-summary  Build config context summary for prompt injection
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
+  show-progress         Show rich pipeline progress visualization
+  publishing-guide      Show per-platform publishing workflow guide
 EOF
 }
 
@@ -990,6 +992,16 @@ else:
 " "$adv_review" "$round"
 }
 
+cmd_show_progress() {
+  bash "$SKILL_DIR/scripts/progress-display.sh" "$PROJECT_DIR" "$@"
+}
+
+cmd_publishing_guide() {
+  local platform="${1:?platform required}"
+  shift
+  bash "$SKILL_DIR/scripts/publishing-guide.sh" "$platform" "$PROJECT_DIR" "$@"
+}
+
 # Main dispatch
 case "$CMD" in
   status) cmd_status ;;
@@ -1014,5 +1026,7 @@ case "$CMD" in
   build-config-summary) cmd_build_config_summary ;;
   list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
+  show-progress) cmd_show_progress "$@" ;;
+  publishing-guide) cmd_publishing_guide "$@" ;;
   *) usage; exit 1 ;;
 esac

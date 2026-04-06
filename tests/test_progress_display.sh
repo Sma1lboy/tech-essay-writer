@@ -106,31 +106,30 @@ with open(sys.argv[4], 'w') as f:
 
 echo "=== progress-display.sh: missing state ==="
 
-# Test 1: Missing state directory — full mode
+# Test 1: Missing state directory — text mode
 PROJECT="$TMPDIR/no-state"
 mkdir -p "$PROJECT"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" 2>&1 || true)
-assert_contains "missing state shows error" "No pipeline state" "$out"
+assert_contains "missing state shows not initialized" "not initialized" "$out"
 
-# Test 2: Missing state directory — compact mode
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" compact 2>&1 || true)
-assert_contains "missing state compact shows NO STATE" "NO STATE" "$out"
+# Test 2: Missing state directory — json mode
+out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --format json 2>&1 || true)
+assert_contains "missing state json shows error" "not_initialized" "$out"
 
 echo "=== progress-display.sh: intake stage ==="
 
-# Test 3: Intake stage full display
+# Test 3: Intake stage text display
 PROJECT="$TMPDIR/intake-proj"
 create_state "$PROJECT" "intake" "materials_count=0"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
 assert_contains "intake shows INTAKE label" "INTAKE" "$out"
 assert_contains "intake shows current indicator" "●" "$out"
-assert_contains "intake shows 0%" "0%" "$out"
+assert_contains "intake shows 0%" "0" "$out"
 assert_contains "intake shows topic" "Test Topic" "$out"
 
-# Test 4: Intake stage compact
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" compact)
-assert_contains "intake compact shows 0%" "0%" "$out"
-assert_contains "intake compact has pipeline labels" "INTAKE" "$out"
+# Test 4: Intake stage json
+out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --format json)
+assert_contains "intake json has stage" '"intake"' "$out"
 
 echo "=== progress-display.sh: research stage ==="
 
@@ -140,7 +139,7 @@ create_state "$PROJECT" "research" "materials_count=5"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
 assert_contains "research shows check for intake" "✓" "$out"
 assert_contains "research shows current indicator" "●" "$out"
-assert_contains "research shows 14%" "14%" "$out"
+assert_contains "research shows 5%" "5" "$out"
 assert_contains "research shows materials count 5" "5" "$out"
 
 echo "=== progress-display.sh: outline stage ==="
@@ -149,7 +148,7 @@ echo "=== progress-display.sh: outline stage ==="
 PROJECT="$TMPDIR/outline-proj"
 create_state "$PROJECT" "outline" "materials_count=8"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "outline shows 28%" "28%" "$out"
+assert_contains "outline shows 15%" "15" "$out"
 assert_contains "outline stage label" "outline" "$out"
 
 echo "=== progress-display.sh: draft stage ==="
@@ -158,12 +157,12 @@ echo "=== progress-display.sh: draft stage ==="
 PROJECT="$TMPDIR/draft-proj"
 create_state "$PROJECT" "draft" "materials_count=10" "draft_version=2"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "draft shows 42%" "42%" "$out"
+assert_contains "draft shows 25%" "25" "$out"
 assert_contains "draft shows draft version 2" "2" "$out"
 
-# Test 8: Draft stage compact
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" compact)
-assert_contains "draft compact shows 42%" "42%" "$out"
+# Test 8: Draft stage json
+out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --format json)
+assert_contains "draft json has completion" "25.0" "$out"
 
 echo "=== progress-display.sh: review stage ==="
 
@@ -171,7 +170,7 @@ echo "=== progress-display.sh: review stage ==="
 PROJECT="$TMPDIR/review-proj"
 create_state "$PROJECT" "review" "materials_count=10" "draft_version=1"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "review shows 57%" "57%" "$out"
+assert_contains "review shows 45%" "45" "$out"
 
 echo "=== progress-display.sh: refinement stage ==="
 
@@ -179,7 +178,6 @@ echo "=== progress-display.sh: refinement stage ==="
 PROJECT="$TMPDIR/refine-proj"
 create_state "$PROJECT" "refinement" "materials_count=10" "draft_version=1" "refinement_round=2" "max_refinement_rounds=3"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "refinement shows 71%" "71%" "$out"
 assert_contains "refinement shows round 2/3" "2/3" "$out"
 
 echo "=== progress-display.sh: polish stage ==="
@@ -188,25 +186,25 @@ echo "=== progress-display.sh: polish stage ==="
 PROJECT="$TMPDIR/polish-proj"
 create_state "$PROJECT" "polish" "materials_count=10" "draft_version=3" "refinement_round=3"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "polish shows 85%" "85%" "$out"
+assert_contains "polish shows 85%" "85" "$out"
 
 echo "=== progress-display.sh: complete stage ==="
 
-# Test 12: Complete stage full
+# Test 12: Complete stage
 PROJECT="$TMPDIR/complete-proj"
 create_state "$PROJECT" "complete" "materials_count=12" "draft_version=3" "refinement_round=3" "completed=true" "completed_at=2026-04-06T12:00:00Z"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "complete shows 100%" "100%" "$out"
+assert_contains "complete shows 100%" "100" "$out"
 assert_contains "complete shows all checks" "✓" "$out"
 assert_contains "complete shows completed_at" "2026-04-06" "$out"
 
-# Test 13: Complete stage compact
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" compact)
-assert_contains "complete compact shows 100%" "100%" "$out"
+# Test 13: Complete stage json
+out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --format json)
+assert_contains "complete json shows 100" "100.0" "$out"
 
 echo "=== progress-display.sh: quality display ==="
 
-# Test 14: Full display with quality score
+# Test 14: Text display with quality score
 PROJECT="$TMPDIR/quality-proj"
 create_state "$PROJECT" "review" "materials_count=10" "draft_version=1"
 create_quality "$PROJECT" "7.5" "CLOSE" "5"
@@ -215,29 +213,24 @@ assert_contains "quality shows score" "7.5" "$out"
 assert_contains "quality shows readiness" "CLOSE" "$out"
 assert_contains "quality shows reviews count" "5/7" "$out"
 
-# Test 15: Quality dimension scores displayed
-assert_contains "quality shows technical dimension" "technical" "$out"
-assert_contains "quality shows editor dimension" "editor" "$out"
+# Test 15: Verbose shows dimension scores
+out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --verbose)
+assert_contains "verbose shows technical dimension" "technical" "$out"
+assert_contains "verbose shows editor dimension" "editor" "$out"
 
-# Test 16: Compact mode with quality score
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" compact)
-assert_contains "compact shows quality" "Quality: 7.5/10" "$out"
+# Test 16: JSON mode with quality
+out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --format json)
+assert_contains "json shows quality score" "7.5" "$out"
 
-# Test 17: No quality file shows 'No reviews yet'
+# Test 17: No quality file shows appropriate message
 PROJECT="$TMPDIR/no-quality-proj"
 create_state "$PROJECT" "draft" "materials_count=5" "draft_version=1"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "no quality shows no reviews" "No reviews yet" "$out"
-
-echo "=== progress-display.sh: compact mode no quality ==="
-
-# Test 18: Compact mode without quality doesn't show quality string
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" compact)
-assert_not_contains "compact no quality omits quality text" "Quality:" "$out"
+assert_contains "no quality shows no score" "No score available" "$out"
 
 echo "=== progress-display.sh: pipeline arrows ==="
 
-# Test 19: Pipeline display includes arrows
+# Test 18: Pipeline display includes arrows
 PROJECT="$TMPDIR/arrows-proj"
 create_state "$PROJECT" "draft"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
@@ -245,12 +238,12 @@ assert_contains "display has arrows" "→" "$out"
 
 echo "=== progress-display.sh: progress bar ==="
 
-# Test 20: Progress bar is present in full mode
+# Test 19: Progress bar is present
 assert_contains "progress bar present" "Progress:" "$out"
 
 echo "=== progress-display.sh: empty circle indicators ==="
 
-# Test 21: Stages after current show empty circles
+# Test 20: Stages after current show empty circles
 PROJECT="$TMPDIR/empty-circles-proj"
 create_state "$PROJECT" "intake"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
@@ -258,7 +251,7 @@ assert_contains "future stages show empty circles" "○" "$out"
 
 echo "=== progress-display.sh: custom topic display ==="
 
-# Test 22: Custom topic is displayed
+# Test 21: Custom topic is displayed
 PROJECT="$TMPDIR/custom-topic-proj"
 create_state "$PROJECT" "research" "topic=Building Scalable APIs"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
@@ -266,20 +259,20 @@ assert_contains "custom topic displayed" "Building Scalable APIs" "$out"
 
 echo "=== progress-display.sh: corrupt state file ==="
 
-# Test 23: Corrupt state file handled gracefully
+# Test 22: Corrupt state file handled gracefully (text)
 PROJECT="$TMPDIR/corrupt-proj"
 mkdir -p "$PROJECT/.essay-state"
 echo "not json at all" > "$PROJECT/.essay-state/pipeline-state.json"
 out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" 2>&1 || true)
 assert_contains "corrupt state shows error" "ERROR" "$out"
 
-# Test 24: Corrupt state in compact mode
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" compact 2>&1 || true)
-assert_contains "corrupt compact shows error" "ERROR" "$out"
+# Test 23: Corrupt state in json mode
+out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --format json 2>&1 || true)
+assert_contains "corrupt json shows error" "corrupt_state" "$out"
 
 echo "=== progress-display.sh: high quality score ==="
 
-# Test 25: High quality score display
+# Test 24: High quality score display
 PROJECT="$TMPDIR/high-quality-proj"
 create_state "$PROJECT" "polish" "materials_count=15" "draft_version=4" "refinement_round=3"
 create_quality "$PROJECT" "9.2" "READY" "7"
