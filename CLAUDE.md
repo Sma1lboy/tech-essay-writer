@@ -72,7 +72,7 @@ After aggregation, `calibrate-reviews.sh` normalizes scores to 1-10, detects
 outliers (>1.5 std dev from panel average), identifies blind spots (topics no
 reviewer covered), and measures inter-reviewer agreement.
 
-## Script Inventory (29 scripts)
+## Script Inventory (33 scripts)
 
 | Script | Description |
 |--------|-------------|
@@ -105,8 +105,12 @@ reviewer covered), and measures inter-reviewer agreement.
 | `install.sh` | Skill installer/uninstaller (symlink components into ~/.claude/skills/) |
 | `fetch-urls.sh` | URL content fetcher for materials intake |
 | `update-material.sh` | Update a specific material source with fetched content and key points |
+| `export.sh` | Export and archive system (bundle/markdown/html/json/archive formats, list-archive) |
+| `hook-workshop.sh` | Opening hook generator and scorer (story/data/question/contrast/bold styles) |
+| `title-generator.sh` | Title variation generator with scoring from research and materials |
+| `topic-research.sh` | Research question generator, competitive landscape queries, unique angles, and research brief from a topic |
 
-## Prompt Inventory (20 prompts)
+## Prompt Inventory (21 prompts)
 
 | Prompt | Role |
 |--------|------|
@@ -121,6 +125,7 @@ reviewer covered), and measures inter-reviewer agreement.
 | `reviewer-seo.md` | SEO/reach optimizer -- title, discoverability, social potential |
 | `reviewer-external.md` | External perspective -- fresh-eyes accessibility check |
 | `reviewer-factcheck.md` | Fact-checker -- verifies every technical claim |
+| `reviewer-chinese.md` | Chinese writing quality reviewer -- naturalness, terminology, style for zh articles |
 | `refiner.md` | Refinement agent -- focused revision pass from review issues |
 | `formatter-internal.md` | Internal format adapter -- company publication version |
 | `formatter-external.md` | External format adapter -- blog/social publication + social package |
@@ -146,7 +151,7 @@ reviewer covered), and measures inter-reviewer agreement.
 | `release-announcement.md` | Release notes / launch announcement with migration guide |
 | `adr.md` | Architecture Decision Record with context, options, decision |
 
-## Test Inventory (18 suites, 1528 tests)
+## Test Inventory (21 suites, 1715 tests)
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
@@ -168,10 +173,13 @@ reviewer covered), and measures inter-reviewer agreement.
 | `test_taste_memory.sh` | 65 | Taste memory: diff-learn, feedback, and suggest |
 | `test_readability.sh` | 51 | Readability scoring + word frequency analysis |
 | `test_article_compare.sh` | 47 | Article draft comparison |
+| `test_export.sh` | 69 | Export and archive system (bundle/markdown/html/json/archive/list-archive) |
+| `test_title_hook.sh` | 59 | Title generator + hook workshop |
+| `test_topic_research.sh` | 59 | Topic research question generation and brief output |
 
 Run all tests:
 ```bash
-bash tests/run-all.sh                    # All 1528 tests
+bash tests/run-all.sh                    # All 1715 tests
 bash tests/run-all.sh --filter readab    # Filter by pattern
 bash tests/run-all.sh --verbose --timing # Show all output + timing
 ```
