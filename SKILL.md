@@ -196,13 +196,14 @@ Agent(description="Audience proxy review", prompt=PROMPT_AUD)
 Agent(description="SEO/reach review", prompt=PROMPT_SEO)
 ```
 
-After all complete, aggregate:
+After all complete, aggregate and score:
 ```bash
 bash "$SKILL_DIR/scripts/aggregate-reviews.sh" "$PROJECT_DIR"
+bash "$SKILL_DIR/scripts/quality-score.sh" "$PROJECT_DIR" verbose
 ```
 
-Read the panel summary. If any REJECT/REWRITE/WEAK ratings:
-**Checkpoint:** "The review panel found issues: [summary]. Proceed with refinement?"
+Read the panel summary and quality score. If score < 6.0 or any REJECT/REWRITE/WEAK:
+**Checkpoint:** "Quality score: X/10. The review panel found issues: [summary]. Proceed with refinement?"
 
 ```bash
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" refinement
@@ -264,8 +265,13 @@ Output files:
 - `.essay-state/final-external.md` — blog/social publication version  
 - `.essay-state/social-package.json` — Twitter thread, LinkedIn post, HN title
 
-**Final checkpoint:** Present both versions and social package.
-"Article complete! Review both versions. Any adjustments?"
+Run publish readiness check:
+```bash
+bash "$SKILL_DIR/scripts/publish-check.sh" "$PROJECT_DIR"
+```
+
+**Final checkpoint:** Present both versions, social package, and publish readiness.
+"Article complete! Quality score: X/10. Review both versions. Any adjustments?"
 
 ### Completion
 
