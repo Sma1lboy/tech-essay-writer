@@ -124,6 +124,8 @@ cmd_set_stage() {
     echo "ERROR: Invalid stage '$stage'. Valid: $valid_stages" >&2
     return 1
   fi
+  # Auto-save checkpoint before stage transition
+  bash "$(dirname "${BASH_SOURCE[0]}")/checkpoint.sh" auto-save "$project" 2>/dev/null || true
   local state
   state=$(read_state "$project")
   local now
