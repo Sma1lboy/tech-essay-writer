@@ -513,10 +513,10 @@ if rating == 'SOLID':
 elif round_num >= 3:
     print('MAX_ROUNDS')
 else:
-    # Check if same issues persist
+    # Check if meaningful issues persist
     attacks = review.get('attacks', [])
-    devastating = [a for a in attacks if a.get('severity') == 'devastating']
-    if len(devastating) == 0:
+    serious = [a for a in attacks if a.get('severity') in ('devastating', 'significant')]
+    if len(serious) == 0:
         print('CONVERGED')
     else:
         print('CONTINUE')
