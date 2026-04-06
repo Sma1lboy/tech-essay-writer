@@ -70,6 +70,7 @@ d = {
     'stage': 'intake',
     'created_at': sys.argv[2],
     'updated_at': sys.argv[2],
+    'language': 'en',
     'materials_count': 0,
     'outline_variant': None,
     'draft_version': 0,

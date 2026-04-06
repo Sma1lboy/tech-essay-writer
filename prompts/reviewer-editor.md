@@ -47,6 +47,13 @@ article doesn't earn their attention.
 - Does it give the reader something to DO?
 - Would you remember this article tomorrow?
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+
 ## AI Slop Detector
 
 Flag if you see:

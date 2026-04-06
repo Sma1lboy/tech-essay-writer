@@ -94,6 +94,13 @@ bash "$SKILL_DIR/scripts/intake-materials.sh" add-angle "$PROJECT_DIR" "<angle>"
 
 For URLs that need fetching, use WebFetch, then update the material with key_points.
 
+**Language detection:** After collecting materials, detect or ask the user's language preference.
+If the user's materials are primarily in Chinese, or the user communicates in Chinese, set language to `zh`. Otherwise default to `en`.
+```bash
+bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" language "<zh|en>"
+```
+This setting propagates to all downstream agents — they will produce output in the chosen language.
+
 **Checkpoint:** Show user the materials summary:
 ```bash
 bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-intake-summary

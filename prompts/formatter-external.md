@@ -21,6 +21,19 @@ to build the author's personal influence and reputation.
 - Add canonical URL placeholder
 - Include suggested tags for each platform
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+- Optimize for Chinese public platforms: 微信公众号, 知乎, 掘金, CSDN for articles
+- Social package should produce Chinese-platform content instead of Twitter/LinkedIn/HN:
+  - 微信公众号摘要 (WeChat article intro)
+  - 微博推文 (Weibo post)
+  - 知乎引流 (Zhihu answer hook)
+  - 掘金摘要 (Juejin summary)
+
 ### Engagement Elements
 - End with a clear call-to-action (follow, subscribe, try it)
 - Include a "discussion prompt" that encourages comments

@@ -34,6 +34,16 @@ The goal is getting this article in front of the right people.
 - Would another article naturally link to this as a resource?
 - Is there an original framework, diagram, or data point worth citing?
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+- Add Chinese SEO dimensions: 百度 keyword optimization, 微信搜索 discoverability
+- Include 知乎/掘金 tag recommendations alongside Western platform tags
+- Consider Chinese social sharing: 微博 posts, 微信公众号 article summaries
+
 ### Platform Optimization
 - dev.to: tags, series potential, canonical URL
 - Medium: publication fit, reading time

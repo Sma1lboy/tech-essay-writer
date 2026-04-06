@@ -39,6 +39,13 @@ What has already been written on this topic? Use WebSearch to check:
 Given the competitive landscape, what makes THIS article worth reading?
 Why would someone who's read the top 5 existing articles still benefit from this one?
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+
 ## Output Format
 
 Write a JSON file to `.essay-state/research-synthesis.json`:

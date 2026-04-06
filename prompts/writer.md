@@ -49,6 +49,13 @@ A real article that a human would be proud to publish.
 - If you're running short, you're probably being too abstract — add specifics
 - If you're running long, you're probably being redundant — cut
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+
 ## Anti-Patterns (DO NOT)
 
 - Don't start with "In today's fast-paced world of technology..."

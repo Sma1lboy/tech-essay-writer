@@ -36,6 +36,13 @@ Think: "If my most knowledgeable colleague read this, what would they call out?"
 - [ ] Are attributions and references accurate?
 - [ ] Is the terminology used correctly?
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+
 ## Output Format
 
 Write to `.essay-state/review-technical.json`:

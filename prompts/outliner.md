@@ -29,6 +29,13 @@ You will receive:
 - **Code density:** Low-Medium (15-25%)
 - **Reader promise:** "After reading this, you'll think differently about X"
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+
 ## Output Format
 
 Write to `.essay-state/outline-{VARIANT}.json`:

@@ -15,6 +15,15 @@ Transform the refined draft into a version optimized for company-internal public
 - Include a "Discussion Questions" section at the end for team sync
 - Add "Related Internal Resources" section linking to internal docs/repos
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+- Format for Chinese internal platforms: 企业微信 (WeCom), 飞书 (Feishu/Lark), 钉钉 (DingTalk)
+- TL;DR and Discussion Questions sections should also be in Chinese
+
 ### Tone Adjustment
 - More conversational — this is for colleagues, not strangers
 - Can assume shared context about company tech stack

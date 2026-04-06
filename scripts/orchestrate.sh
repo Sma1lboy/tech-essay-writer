@@ -71,6 +71,29 @@ latest_draft_version() {
   echo "0"
 }
 
+# Helper: build language directive from pipeline state
+build_language_directive() {
+  local lang="en"
+  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
+    lang=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('language','en'))" 2>/dev/null || echo "en")
+  fi
+  if [ "$lang" = "zh" ]; then
+    cat <<'LANG_END'
+
+## Language Directive
+
+Write all output (article text, analysis, suggestions) in Chinese (中文). Technical terms, code, and JSON keys should remain in English. Article prose, section titles, hooks, transitions, and all reader-facing text must be in Chinese.
+LANG_END
+  else
+    cat <<'LANG_END'
+
+## Language Directive
+
+Write all output (article text, analysis, suggestions) in English.
+LANG_END
+  fi
+}
+
 cmd_status() {
   if [ ! -f "$STATE_DIR/pipeline-state.json" ]; then
     echo "NOT_INITIALIZED"
@@ -209,6 +232,7 @@ ${materials:-"{}"}
 \`\`\`json
 ${taste:-"{}"}
 \`\`\`
+$(build_language_directive)
 
 ## Instructions
 
@@ -268,6 +292,7 @@ ${materials:-"{}"}
 \`\`\`json
 ${taste:-"{}"}
 \`\`\`
+$(build_language_directive)
 
 ## Instructions
 
@@ -328,6 +353,7 @@ ${materials:-"{}"}
 \`\`\`json
 ${taste:-"{}"}
 \`\`\`
+$(build_language_directive)
 
 ## Instructions
 
@@ -386,6 +412,7 @@ ${draft_content:-"(no draft available)"}
 \`\`\`json
 ${research:-"{}"}
 \`\`\`
+$(build_language_directive)
 
 ## Instructions
 
@@ -439,6 +466,7 @@ ${outline:-"{}"}
 \`\`\`
 
 ## Refinement Round: $round / 3
+$(build_language_directive)
 
 ## Instructions
 
@@ -512,6 +540,7 @@ ${taste:-"{}"}
 ## Previously Published Articles (for cross-referencing)
 
 ${xrefs:-"(no published articles to cross-reference)"}
+$(build_language_directive)
 
 ## Instructions
 

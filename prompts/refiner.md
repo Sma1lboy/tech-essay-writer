@@ -34,6 +34,13 @@ You will receive:
 - If a fix requires restructuring a section, note it but keep changes minimal
 - Don't add new content unless a knowledge gap was specifically identified
 
+## Language
+
+Follow the language directive provided by the conductor. If writing in Chinese:
+- Article prose, section titles, analysis text → Chinese (中文)
+- Code, JSON keys, file names, technical terms → English
+- Maintain the same quality standards regardless of language
+
 ## Output
 
 Write the revised draft to `.essay-state/draft-v{N+1}.md`
