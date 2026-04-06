@@ -26,7 +26,9 @@ Commands:
   build-code-validation Validate code examples in the latest draft
   build-diagram-suggestions Suggest diagrams/images for the latest draft
   build-series-context  Build series context for injection into writer/formatter prompts
+  build-analytics-insights Output performance insights from analytics for prompt injection
   build-analytics-summary Show performance trends and analytics summary
+  build-config-summary  Build config context summary for prompt injection
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
 EOF
@@ -101,6 +103,54 @@ LANG_END
 
 Write all output (article text, analysis, suggestions) in English.
 LANG_END
+  fi
+}
+
+# Helper: get series context section if series_id is set in pipeline state
+get_series_context_section() {
+  local series_id=""
+  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
+    series_id=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('series_id','') or '')" 2>/dev/null || echo "")
+  fi
+  if [ -n "$series_id" ]; then
+    local ctx
+    ctx=$(bash "$SKILL_DIR/scripts/series-manager.sh" context "$series_id" 2>/dev/null || echo "")
+    if [ -n "$ctx" ]; then
+      cat << SERIES_END
+
+## Series Context
+
+This article is part of a series. Consider the series arc and previous articles when writing.
+
+\`\`\`json
+${ctx}
+\`\`\`
+SERIES_END
+    fi
+  fi
+}
+
+# Helper: get series navigation for formatter prompts
+get_series_nav_section() {
+  local series_id=""
+  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
+    series_id=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('series_id','') or '')" 2>/dev/null || echo "")
+  fi
+  if [ -n "$series_id" ]; then
+    local ctx
+    ctx=$(bash "$SKILL_DIR/scripts/series-manager.sh" context "$series_id" 2>/dev/null || echo "")
+    if [ -n "$ctx" ]; then
+      cat << NAV_END
+
+## Series Navigation
+
+Include series navigation links (previous/next article) where the format supports it.
+
+\`\`\`json
+${ctx}
+\`\`\`
+NAV_END
+    fi
   fi
 }
 
@@ -305,6 +355,7 @@ ${materials:-"{}"}
 \`\`\`json
 ${taste:-"{}"}
 \`\`\`
+$(get_series_context_section)
 $(build_language_directive)
 
 ## Instructions
@@ -420,6 +471,7 @@ ${materials:-"{}"}
 \`\`\`json
 ${taste:-"{}"}
 \`\`\`
+$(get_series_context_section)
 $(build_language_directive)
 
 ## Instructions
@@ -636,6 +688,7 @@ Author bio line: ${author_bio:-"(not set)"}
 ## Previously Published Articles (for cross-referencing)
 
 ${xrefs:-"(no published articles to cross-reference)"}
+$(get_series_nav_section)
 $(build_language_directive)
 
 ## Instructions
@@ -816,114 +869,94 @@ cmd_build_diagram_suggestions() {
 }
 
 cmd_build_series_context() {
-  # Build series context to inject into writer/formatter prompts
-  # If the current article belongs to a series, provide reading order, arc, and prior synopses
-  local series_file="$HOME/.tech-essay-writer/article-series.json"
-  local xref_file="$HOME/.tech-essay-writer/published-articles.json"
+  # Build series context for prompt injection
+  # If pipeline state has series_id, use series-manager.sh context
+  local series_id=""
+  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
+    series_id=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('series_id','') or '')" 2>/dev/null || echo "")
+  fi
 
-  if [ ! -f "$series_file" ]; then
-    echo "(no series data available)"
+  if [ -n "$series_id" ]; then
+    local context
+    context=$(bash "$SKILL_DIR/scripts/series-manager.sh" context "$series_id" 2>/dev/null || echo "")
+    if [ -n "$context" ]; then
+      echo "## Series Context"
+      echo ""
+      echo "This article is part of a series. Here is the series context:"
+      echo ""
+      echo '```json'
+      echo "$context"
+      echo '```'
+      echo ""
+      echo "**Writing guidance**: Build on previous articles in the series. Reference prior entries where relevant for continuity."
+    else
+      echo "(series $series_id not found)"
+    fi
+  else
+    echo "(no series associated with this article)"
+  fi
+}
+
+cmd_build_analytics_insights() {
+  # Output performance insights from taste memory for prompt injection
+  local taste
+  taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+  if [ -z "$taste" ]; then
+    echo "(no performance insights available)"
     return
   fi
-
-  # Get current article topic from pipeline state
-  local topic=""
-  if [ -f "$STATE_DIR/pipeline-state.json" ]; then
-    topic=$(python3 -c "import json; print(json.load(open('$STATE_DIR/pipeline-state.json')).get('topic',''))" 2>/dev/null || echo "")
-  fi
-
   python3 -c "
-import json, sys, os
-
-series_file = sys.argv[1]
-xref_file = sys.argv[2]
-topic = sys.argv[3]
-
-if not os.path.exists(series_file):
-    print('(no series data available)')
-    sys.exit(0)
-
-with open(series_file) as f:
-    d = json.load(f)
-
-if not d.get('series'):
-    print('(no series defined)')
-    sys.exit(0)
-
-# Load published articles for title resolution
-articles_by_id = {}
-if os.path.exists(xref_file):
-    with open(xref_file) as f:
-        xref = json.load(f)
-    for a in xref.get('articles', []):
-        articles_by_id[a['id']] = a
-
-# Find series matching current topic
-topic_lower = topic.lower()
-topic_words = set(topic_lower.split())
-matched = []
-
-for s in d['series']:
-    score = 0
-    title_words = set(s['title'].lower().split())
-    score += len(topic_words & title_words) * 2
-    for tag in s.get('tags', []):
-        if tag.lower() in topic_lower:
-            score += 3
-    theme = s.get('narrative_arc', {}).get('theme', '').lower()
-    if theme and any(w in theme for w in topic_words):
-        score += 2
-    # Check if any article in the series matches
-    for a in s.get('articles', []):
-        syn = a.get('synopsis', '').lower()
-        if any(w in syn for w in topic_words):
-            score += 1
-    if score > 0:
-        matched.append((score, s))
-
-matched.sort(key=lambda x: -x[0])
-
-if not matched:
-    print('(no matching series for this topic)')
-    sys.exit(0)
-
-print('## Series Context')
-print()
-
-for _, s in matched[:2]:
-    print(f'### Series: {s[\"title\"]}')
-    print(f'Description: {s.get(\"description\", \"\")}')
-    print(f'Status: {s.get(\"status\", \"?\")}')
-    arc = s.get('narrative_arc', {})
-    print(f'Arc type: {arc.get(\"type\", \"?\")}')
-    if arc.get('theme'):
-        print(f'Theme: {arc[\"theme\"]}')
-    if arc.get('progression'):
-        print(f'Progression: {arc[\"progression\"]}')
+import json, sys
+taste = json.loads(sys.argv[1])
+insights = taste.get('performance_insights')
+if not insights:
+    print('(no performance insights available)')
+else:
+    print('## Performance Insights')
     print()
-
-    articles = sorted(s.get('articles', []), key=lambda a: a.get('order', 0))
-    if articles:
-        print('Reading order:')
-        for a in articles:
-            title = articles_by_id.get(a['article_id'], {}).get('title', a['article_id'])
-            url = articles_by_id.get(a['article_id'], {}).get('url', '')
-            print(f'  {a[\"order\"]}. {title} ({a.get(\"role\", \"?\")})')
-            if a.get('synopsis'):
-                print(f'     Synopsis: {a[\"synopsis\"]}')
-            if url:
-                print(f'     URL: {url}')
-        print()
-        print('**Writing guidance**: This article should build on the prior entries above.')
-        print(f'Consider the {arc.get(\"type\", \"progressive\")} arc when structuring transitions.')
-        print(f'Reference prior articles where relevant for continuity.')
+    print('Based on analytics from published articles:')
     print()
-" "$series_file" "$xref_file" "$topic"
+    tags = insights.get('best_performing_tags', [])
+    if tags:
+        print(f'Best performing tags: {\", \".join(tags[:5])}')
+    fmt = insights.get('best_performing_format', '')
+    if fmt and fmt != 'unknown':
+        print(f'Best performing format: {fmt}')
+    avg_v = insights.get('avg_views', 0)
+    if avg_v:
+        print(f'Average views: {avg_v}')
+    for i in insights.get('insights', []):
+        print(f'- {i}')
+" "$taste"
 }
 
 cmd_build_analytics_summary() {
-  # Show performance trends and analytics insights for context injection
+  # Show performance trends and analytics summary
   bash "$SKILL_DIR/scripts/analytics-feedback.sh" trends 2>/dev/null || echo '(no analytics data available)'
+}
+
+cmd_build_config_summary() {
+  # Build config context summary for prompt injection
+  local config_file="$HOME/.tech-essay-writer/config.json"
+  if [ ! -f "$config_file" ]; then
+    echo "(no user config — using defaults)"
+    return
+  fi
+  python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    config = json.load(f)
+print('## User Configuration')
+print()
+platforms = config.get('default_platforms', [])
+print(f\"Default platforms: {', '.join(platforms)}\")
+print(f\"Writing style: {config.get('writing_style', 'technical')}\")
+audiences = config.get('target_audiences', [])
+print(f\"Target audiences: {', '.join(audiences)}\")
+print(f\"Language: {config.get('language', 'en')}\")
+print(f\"Use author profile: {config.get('use_author_profile', True)}\")
+print(f\"Max refinement rounds: {config.get('max_refinement_rounds', 3)}\")
+" "$config_file"
 }
 
 cmd_check_convergence() {
@@ -976,7 +1009,9 @@ case "$CMD" in
   build-code-validation) cmd_build_code_validation "$@" ;;
   build-diagram-suggestions) cmd_build_diagram_suggestions "$@" ;;
   build-series-context) cmd_build_series_context ;;
+  build-analytics-insights) cmd_build_analytics_insights ;;
   build-analytics-summary) cmd_build_analytics_summary ;;
+  build-config-summary) cmd_build_config_summary ;;
   list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
   *) usage; exit 1 ;;

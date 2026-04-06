@@ -45,7 +45,13 @@ with open(series_file) as f:
     d = json.load(f)
 
 now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-series_id = f'ser-{int(time.time())}'
+# Use existing IDs to ensure uniqueness
+existing_ids = {s['id'] for s in d['series']}
+base_id = int(time.time())
+series_id = f'ser-{base_id}'
+while series_id in existing_ids:
+    base_id += 1
+    series_id = f'ser-{base_id}'
 
 d['series'].append({
     'id': series_id,

@@ -1,74 +1,81 @@
 #!/usr/bin/env bash
-# Analytics feedback loop — record performance metrics, analyze patterns, feed into taste memory
+# Analytics feedback loop — track article performance and feed insights into taste memory
 # Usage: analytics-feedback.sh <command> [args...]
 set -euo pipefail
 
 ANALYTICS_DIR="$HOME/.tech-essay-writer"
-ANALYTICS_FILE="$ANALYTICS_DIR/analytics-data.json"
+ANALYTICS_FILE="$ANALYTICS_DIR/analytics.json"
 TASTE_FILE="$ANALYTICS_DIR/taste-memory.json"
+XREF_FILE="$ANALYTICS_DIR/published-articles.json"
+
+VALID_METRICS="views shares comments likes bookmarks read_time_avg bounce_rate"
 
 usage() {
   cat <<'EOF'
 Usage: analytics-feedback.sh <command> [args...]
 
 Commands:
-  record-metrics <article_id> <metrics_json>  Record performance metrics for an article
-  get-metrics <article_id>                    Get metrics for a specific article
-  trends                                      Show aggregate performance trends
-  top-performers [metric] [count]             Best articles by metric (views|shares|comments|completion_rate, default: views, top 5)
-  feed-taste                                  Analyze top performers and update taste memory
-  reset                                       Clear all analytics data
+  record <article_id> <metric> <value>         Record a performance metric
+  record-batch <article_id> <json_metrics>     Record multiple metrics from JSON
+  query <article_id>                           Show all metrics for an article
+  top [metric] [n]                             Top N articles by metric (default: views, 5)
+  trends                                       Show performance trends
+  feed-taste <project_dir>                     Analyze and update taste memory with insights
+  summary                                      Human-readable analytics summary
+  compare <article_id_1> <article_id_2>        Compare metrics between two articles
 EOF
 }
 
 ensure_analytics() {
   mkdir -p "$ANALYTICS_DIR"
   if [ ! -f "$ANALYTICS_FILE" ]; then
-    printf '{"metrics":{},"updated_at":""}' > "$ANALYTICS_FILE"
+    python3 -c "
+import json, time
+d = {
+    'articles': {},
+    'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+}
+with open('$ANALYTICS_FILE', 'w') as f:
+    json.dump(d, f, indent=2)
+"
   fi
 }
 
-cmd_record_metrics() {
-  local article_id="$1" metrics_json="$2"
+validate_metric() {
+  local metric="$1"
+  if ! echo "$VALID_METRICS" | grep -qw "$metric"; then
+    echo "ERROR: Invalid metric '$metric'. Valid: $VALID_METRICS" >&2
+    return 1
+  fi
+}
+
+cmd_record() {
+  local article_id="$1" metric="$2" value="$3"
+  validate_metric "$metric"
   ensure_analytics
   python3 -c "
 import json, sys, os, time
 
 analytics_file = sys.argv[1]
 article_id = sys.argv[2]
-metrics_json_str = sys.argv[3]
-
-try:
-    metrics = json.loads(metrics_json_str)
-except json.JSONDecodeError:
-    print('ERROR: Invalid JSON for metrics', file=sys.stderr)
-    sys.exit(1)
+metric = sys.argv[3]
+raw = float(sys.argv[4])
+value = int(raw) if raw == int(raw) else raw
 
 with open(analytics_file) as f:
     d = json.load(f)
 
 now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 
-# Build metrics entry — merge with existing if present
-existing = d['metrics'].get(article_id, {})
-entry = {
-    'article_id': article_id,
-    'title': metrics.get('title', existing.get('title', '')),
-    'published_at': metrics.get('published_at', existing.get('published_at', '')),
-    'recorded_at': now,
-    'views': metrics.get('views', existing.get('views', 0)),
-    'shares': metrics.get('shares', existing.get('shares', 0)),
-    'comments': metrics.get('comments', existing.get('comments', 0)),
-    'avg_read_time_seconds': metrics.get('avg_read_time_seconds', existing.get('avg_read_time_seconds', 0)),
-    'completion_rate': metrics.get('completion_rate', existing.get('completion_rate', 0)),
-    'platforms': metrics.get('platforms', existing.get('platforms', {})),
-    'tags': metrics.get('tags', existing.get('tags', [])),
-    'variant_used': metrics.get('variant_used', existing.get('variant_used', '')),
-    'quality_score': metrics.get('quality_score', existing.get('quality_score', 0)),
-    'refinement_rounds': metrics.get('refinement_rounds', existing.get('refinement_rounds', 0))
-}
+if article_id not in d['articles']:
+    d['articles'][article_id] = {
+        'metrics': {},
+        'first_recorded': now,
+        'last_updated': now
+    }
 
-d['metrics'][article_id] = entry
+d['articles'][article_id]['metrics'][metric] = value
+d['articles'][article_id]['last_updated'] = now
 d['updated_at'] = now
 
 tmp = analytics_file + '.tmp'
@@ -76,11 +83,63 @@ with open(tmp, 'w') as f:
     json.dump(d, f, indent=2)
 os.rename(tmp, analytics_file)
 
-print(f'Recorded metrics for {article_id}')
-" "$ANALYTICS_FILE" "$article_id" "$metrics_json"
+print(f'Recorded {metric}={value} for {article_id}')
+" "$ANALYTICS_FILE" "$article_id" "$metric" "$value"
 }
 
-cmd_get_metrics() {
+cmd_record_batch() {
+  local article_id="$1" json_metrics="$2"
+  ensure_analytics
+  python3 -c "
+import json, sys, os, time
+
+analytics_file = sys.argv[1]
+article_id = sys.argv[2]
+metrics_str = sys.argv[3]
+
+valid = set('views shares comments likes bookmarks read_time_avg bounce_rate'.split())
+
+try:
+    metrics = json.loads(metrics_str)
+except json.JSONDecodeError:
+    print('ERROR: Invalid JSON for metrics', file=sys.stderr)
+    sys.exit(1)
+
+# Validate all metric names
+for k in metrics:
+    if k not in valid:
+        print(f'ERROR: Invalid metric \"{k}\". Valid: {\" \".join(sorted(valid))}', file=sys.stderr)
+        sys.exit(1)
+
+with open(analytics_file) as f:
+    d = json.load(f)
+
+now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+
+if article_id not in d['articles']:
+    d['articles'][article_id] = {
+        'metrics': {},
+        'first_recorded': now,
+        'last_updated': now
+    }
+
+for k, v in metrics.items():
+    fv = float(v)
+    d['articles'][article_id]['metrics'][k] = int(fv) if fv == int(fv) else fv
+
+d['articles'][article_id]['last_updated'] = now
+d['updated_at'] = now
+
+tmp = analytics_file + '.tmp'
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2)
+os.rename(tmp, analytics_file)
+
+print(f'Recorded {len(metrics)} metrics for {article_id}')
+" "$ANALYTICS_FILE" "$article_id" "$json_metrics"
+}
+
+cmd_query() {
   local article_id="$1"
   ensure_analytics
   python3 -c "
@@ -90,7 +149,7 @@ with open(sys.argv[1]) as f:
     d = json.load(f)
 
 article_id = sys.argv[2]
-entry = d['metrics'].get(article_id)
+entry = d.get('articles', {}).get(article_id)
 
 if not entry:
     print(f'No metrics found for {article_id}', file=sys.stderr)
@@ -98,6 +157,35 @@ if not entry:
 
 print(json.dumps(entry, indent=2))
 " "$ANALYTICS_FILE" "$article_id"
+}
+
+cmd_top() {
+  local metric="${1:-views}" n="${2:-5}"
+  validate_metric "$metric"
+  ensure_analytics
+  python3 -c "
+import json, sys
+
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+
+metric = sys.argv[2]
+n = int(sys.argv[3])
+
+scored = []
+for aid, entry in d['articles'].items():
+    val = entry['metrics'].get(metric, 0)
+    scored.append((val, aid))
+
+scored.sort(key=lambda x: -x[0])
+
+if not scored:
+    print('No analytics data yet.')
+else:
+    print(f'Top {min(n, len(scored))} articles by {metric}:')
+    for val, aid in scored[:n]:
+        print(f'  {aid}: {val}')
+" "$ANALYTICS_FILE" "$metric" "$n"
 }
 
 cmd_trends() {
@@ -108,242 +196,264 @@ import json, sys
 with open(sys.argv[1]) as f:
     d = json.load(f)
 
-metrics = d.get('metrics', {})
-if not metrics:
+articles = d.get('articles', {})
+if not articles:
     print('No analytics data recorded yet.')
     sys.exit(0)
 
-entries = list(metrics.values())
-n = len(entries)
+n = len(articles)
+all_metrics = {}
+for aid, entry in articles.items():
+    for k, v in entry.get('metrics', {}).items():
+        all_metrics.setdefault(k, []).append(v)
 
-total_views = sum(e.get('views', 0) for e in entries)
-total_shares = sum(e.get('shares', 0) for e in entries)
-total_comments = sum(e.get('comments', 0) for e in entries)
-avg_completion = sum(e.get('completion_rate', 0) for e in entries) / n if n else 0
-avg_read_time = sum(e.get('avg_read_time_seconds', 0) for e in entries) / n if n else 0
-avg_quality = sum(e.get('quality_score', 0) for e in entries) / n if n else 0
+result = {'total_articles': n, 'metrics_summary': {}}
+for metric, values in all_metrics.items():
+    avg = sum(values) / len(values) if values else 0
+    result['metrics_summary'][metric] = {
+        'average': round(avg, 2),
+        'min': min(values),
+        'max': max(values),
+        'count': len(values)
+    }
 
-# Variant distribution
-variant_counts = {}
-for e in entries:
-    v = e.get('variant_used', 'unknown')
-    if v:
-        variant_counts[v] = variant_counts.get(v, 0) + 1
+# Simple trend: compare first half vs second half by last_updated
+entries = [(aid, e) for aid, e in articles.items()]
+entries.sort(key=lambda x: x[1].get('last_updated', ''))
 
-# Tag frequency
-tag_counts = {}
-for e in entries:
-    for t in e.get('tags', []):
-        tag_counts[t] = tag_counts.get(t, 0) + 1
-
-# Platform breakdown
-platform_views = {}
-for e in entries:
-    for pname, pdata in e.get('platforms', {}).items():
-        platform_views[pname] = platform_views.get(pname, 0) + pdata.get('views', 0)
-
-# Output
-result = {
-    'total_articles': n,
-    'total_views': total_views,
-    'total_shares': total_shares,
-    'total_comments': total_comments,
-    'avg_views_per_article': round(total_views / n, 1) if n else 0,
-    'avg_shares_per_article': round(total_shares / n, 1) if n else 0,
-    'avg_completion_rate': round(avg_completion, 3),
-    'avg_read_time_seconds': round(avg_read_time, 1),
-    'avg_quality_score': round(avg_quality, 2),
-    'variant_distribution': variant_counts,
-    'top_tags': dict(sorted(tag_counts.items(), key=lambda x: -x[1])[:10]),
-    'platform_views': platform_views
-}
+if n >= 4:
+    mid = n // 2
+    first_half = entries[:mid]
+    second_half = entries[mid:]
+    trends = {}
+    for metric in all_metrics:
+        first_avg = sum(e.get('metrics', {}).get(metric, 0) for _, e in first_half) / len(first_half)
+        second_avg = sum(e.get('metrics', {}).get(metric, 0) for _, e in second_half) / len(second_half)
+        if first_avg > 0:
+            change = ((second_avg - first_avg) / first_avg) * 100
+            direction = 'improving' if change > 5 else ('declining' if change < -5 else 'stable')
+            trends[metric] = {'direction': direction, 'change_pct': round(change, 1)}
+        else:
+            trends[metric] = {'direction': 'new', 'change_pct': 0}
+    result['trends'] = trends
 
 print(json.dumps(result, indent=2))
 " "$ANALYTICS_FILE"
 }
 
-cmd_top_performers() {
-  local metric="${1:-views}" count="${2:-5}"
-  ensure_analytics
-  python3 -c "
-import json, sys
-
-metric = sys.argv[2]
-count = int(sys.argv[3])
-
-valid_metrics = ['views', 'shares', 'comments', 'completion_rate', 'quality_score', 'avg_read_time_seconds']
-if metric not in valid_metrics:
-    print(f'ERROR: Invalid metric. Use: {\"|\".join(valid_metrics)}', file=sys.stderr)
-    sys.exit(1)
-
-with open(sys.argv[1]) as f:
-    d = json.load(f)
-
-entries = list(d.get('metrics', {}).values())
-if not entries:
-    print('No analytics data recorded yet.')
-    sys.exit(0)
-
-# Sort by metric descending
-entries.sort(key=lambda e: e.get(metric, 0), reverse=True)
-top = entries[:count]
-
-print(f'Top {len(top)} by {metric}:')
-for i, e in enumerate(top, 1):
-    val = e.get(metric, 0)
-    title = e.get('title', e.get('article_id', '?'))
-    print(f'  {i}. [{e[\"article_id\"]}] {title} — {metric}: {val}')
-
-# Also output JSON
-print()
-print(json.dumps([{
-    'article_id': e['article_id'],
-    'title': e.get('title', ''),
-    metric: e.get(metric, 0),
-    'variant_used': e.get('variant_used', ''),
-    'tags': e.get('tags', []),
-    'quality_score': e.get('quality_score', 0),
-    'refinement_rounds': e.get('refinement_rounds', 0)
-} for e in top], indent=2))
-" "$ANALYTICS_FILE" "$metric" "$count"
-}
-
 cmd_feed_taste() {
+  local project_dir="$1"
   ensure_analytics
+
+  # Ensure taste file exists
+  if [ ! -f "$TASTE_FILE" ]; then
+    echo '{}' > "$TASTE_FILE"
+  fi
+
   python3 -c "
 import json, sys, os, time
 
 analytics_file = sys.argv[1]
 taste_file = sys.argv[2]
+xref_file = sys.argv[3]
 
 with open(analytics_file) as f:
     analytics = json.load(f)
 
-entries = list(analytics.get('metrics', {}).values())
-if not entries:
+with open(taste_file) as f:
+    taste = json.load(f)
+
+# Load published articles for metadata correlation
+xref = {'articles': []}
+if os.path.exists(xref_file):
+    with open(xref_file) as f:
+        xref = json.load(f)
+
+articles = analytics.get('articles', {})
+if not articles:
     print('No analytics data to analyze.')
     sys.exit(0)
 
-# Load taste memory
-taste = {}
-if os.path.exists(taste_file):
-    with open(taste_file) as f:
-        taste = json.load(f)
-
 now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 
-# --- Find top 25% by composite score (views + shares*10) ---
-for e in entries:
-    e['_composite'] = e.get('views', 0) + e.get('shares', 0) * 10
+# Build article metadata map from cross-references
+meta_map = {}
+for a in xref.get('articles', []):
+    meta_map[a['id']] = a
 
-entries_sorted = sorted(entries, key=lambda e: e['_composite'], reverse=True)
-cutoff_idx = max(1, len(entries_sorted) // 4)
-top_performers = entries_sorted[:cutoff_idx]
-top_ids = set(e['article_id'] for e in top_performers)
+# Calculate averages
+total_views = 0
+total_shares = 0
+count = 0
+tag_performance = {}
+top_article = None
+top_views = 0
 
-# --- Extract patterns from top performers ---
+for aid, entry in articles.items():
+    metrics = entry.get('metrics', {})
+    views = metrics.get('views', 0)
+    shares = metrics.get('shares', 0)
+    total_views += views
+    total_shares += shares
+    count += 1
 
-# Variant preference
-variant_counts = {}
-for e in top_performers:
-    v = e.get('variant_used', '')
-    if v:
-        variant_counts[v] = variant_counts.get(v, 0) + 1
-best_variant = max(variant_counts, key=variant_counts.get) if variant_counts else None
+    if views > top_views:
+        top_views = views
+        meta = meta_map.get(aid, {})
+        top_article = {
+            'id': aid,
+            'title': meta.get('title', aid),
+            'views': views
+        }
 
-# Top tags
-tag_scores = {}
-for e in top_performers:
-    for t in e.get('tags', []):
-        tag_scores[t] = tag_scores.get(t, 0) + e['_composite']
-top_tags = sorted(tag_scores, key=tag_scores.get, reverse=True)[:10]
+    # Correlate with tags if available
+    meta = meta_map.get(aid, {})
+    for tag in meta.get('tags', []):
+        tag_performance.setdefault(tag, {'total_views': 0, 'total_shares': 0, 'count': 0})
+        tag_performance[tag]['total_views'] += views
+        tag_performance[tag]['total_shares'] += shares
+        tag_performance[tag]['count'] += 1
 
-# Quality score stats
-quality_scores = [e.get('quality_score', 0) for e in top_performers if e.get('quality_score', 0) > 0]
-avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
+# Find best performing tags
+best_tags = sorted(
+    tag_performance.items(),
+    key=lambda x: x[1]['total_views'] / max(x[1]['count'], 1),
+    reverse=True
+)[:5]
 
-# Refinement round stats
-refinements = [e.get('refinement_rounds', 0) for e in top_performers if e.get('refinement_rounds', 0) > 0]
-avg_refinements = sum(refinements) / len(refinements) if refinements else 0
+# Generate insights
+insights = []
+avg_views = total_views / max(count, 1)
+avg_shares = total_shares / max(count, 1)
 
-# Read time signals (article length proxy)
-read_times = [e.get('avg_read_time_seconds', 0) for e in top_performers if e.get('avg_read_time_seconds', 0) > 0]
-avg_read_time = sum(read_times) / len(read_times) if read_times else 0
+if best_tags:
+    top_tag = best_tags[0]
+    tag_avg = top_tag[1]['total_views'] / max(top_tag[1]['count'], 1)
+    if tag_avg > avg_views * 1.2:
+        pct = int((tag_avg / max(avg_views, 1) - 1) * 100)
+        insights.append(f'Articles tagged \"{top_tag[0]}\" average {pct}% more views')
 
-# Completion rate stats
-completions = [e.get('completion_rate', 0) for e in top_performers if e.get('completion_rate', 0) > 0]
-avg_completion = sum(completions) / len(completions) if completions else 0
+# Determine best performing format from taste memory topics
+topics = taste.get('topics_written', [])
+variant_perf = {}
+for t in topics:
+    variant = t.get('variant')
+    topic_name = t.get('topic', '')
+    if variant:
+        variant_perf.setdefault(variant, {'count': 0, 'total_views': 0})
+        for aid, entry in articles.items():
+            meta = meta_map.get(aid, {})
+            if topic_name.lower() in meta.get('title', '').lower():
+                variant_perf[variant]['total_views'] += entry.get('metrics', {}).get('views', 0)
+                variant_perf[variant]['count'] += 1
 
-# --- Update taste memory (idempotent) ---
+best_format = None
+best_format_avg = 0
+for v, perf in variant_perf.items():
+    if perf['count'] > 0:
+        v_avg = perf['total_views'] / perf['count']
+        if v_avg > best_format_avg:
+            best_format_avg = v_avg
+            best_format = v
 
-# Initialize analytics-derived section
-taste.setdefault('analytics_derived', {})
-ad = taste['analytics_derived']
+if best_format and best_format_avg > avg_views:
+    insights.append(f'{best_format}-style articles perform above average')
 
-ad['last_analyzed_at'] = now
-ad['articles_analyzed'] = len(entries)
-ad['top_performer_count'] = len(top_performers)
-ad['top_performer_ids'] = list(top_ids)
+performance_insights = {
+    'best_performing_tags': [t[0] for t in best_tags],
+    'best_performing_format': best_format or 'unknown',
+    'avg_views': round(avg_views, 1),
+    'avg_shares': round(avg_shares, 1),
+    'top_article': top_article,
+    'insights': insights,
+    'updated_at': now
+}
 
-if best_variant:
-    ad['best_performing_variant'] = best_variant
-    # Also set as preferred variant if it has enough data
-    if variant_counts.get(best_variant, 0) >= 2:
-        taste['preferred_variant'] = best_variant
+taste['performance_insights'] = performance_insights
 
-ad['successful_tags'] = top_tags
-ad['avg_top_quality_score'] = round(avg_quality, 2)
-ad['avg_top_refinement_rounds'] = round(avg_refinements, 1)
-ad['optimal_read_time_seconds'] = round(avg_read_time, 1)
-ad['avg_top_completion_rate'] = round(avg_completion, 3)
-
-# Feed structural preferences
-taste.setdefault('structural_preferences', {})
-if avg_read_time > 0:
-    minutes = round(avg_read_time / 60, 1)
-    taste['structural_preferences']['optimal_read_time_minutes'] = minutes
-if avg_completion > 0:
-    taste['structural_preferences']['target_completion_rate'] = round(avg_completion, 2)
-
-# Record as feedback pattern (idempotent — replace analytics line)
-taste.setdefault('feedback_patterns', [])
-analytics_pattern = f'Analytics: top performers use variant={best_variant or \"?\"}, tags={top_tags[:3]}, avg_quality={round(avg_quality,1)}'
-taste['feedback_patterns'] = [p for p in taste['feedback_patterns'] if not p.startswith('Analytics:')]
-taste['feedback_patterns'].append(analytics_pattern)
-taste['feedback_patterns'] = taste['feedback_patterns'][-20:]
-
-taste['updated_at'] = now
-
-# Write atomically
 tmp = taste_file + '.tmp'
 with open(tmp, 'w') as f:
     json.dump(taste, f, indent=2)
 os.rename(tmp, taste_file)
 
-# Output summary
-print(f'Analyzed {len(entries)} articles, {len(top_performers)} top performers')
-print(f'Best variant: {best_variant or \"(none)\"}')
-print(f'Successful tags: {\", \".join(top_tags[:5]) if top_tags else \"(none)\"}')
-print(f'Avg quality (top): {round(avg_quality, 1)}')
-print(f'Avg read time (top): {round(avg_read_time/60, 1) if avg_read_time else 0} min')
-print(f'Taste memory updated.')
-" "$ANALYTICS_FILE" "$TASTE_FILE"
+print('Performance insights updated in taste memory.')
+print(f'  Articles analyzed: {count}')
+print(f'  Avg views: {avg_views:.0f}')
+print(f'  Avg shares: {avg_shares:.0f}')
+if insights:
+    print('  Insights:')
+    for i in insights:
+        print(f'    - {i}')
+" "$ANALYTICS_FILE" "$TASTE_FILE" "$XREF_FILE"
 }
 
-cmd_reset() {
+cmd_summary() {
   ensure_analytics
   python3 -c "
-import json, sys, os, time
+import json, sys
 
-analytics_file = sys.argv[1]
-now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-d = {'metrics': {}, 'updated_at': now}
-tmp = analytics_file + '.tmp'
-with open(tmp, 'w') as f:
-    json.dump(d, f, indent=2)
-os.rename(tmp, analytics_file)
-print('Analytics data reset.')
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+
+articles = d.get('articles', {})
+if not articles:
+    print('No analytics data yet.')
+    sys.exit(0)
+
+print(f'Analytics Summary ({len(articles)} articles)')
+print(f'Last updated: {d.get(\"updated_at\", \"?\")}')
+print()
+
+# Aggregate stats
+all_metrics = {}
+for aid, entry in articles.items():
+    for k, v in entry.get('metrics', {}).items():
+        all_metrics.setdefault(k, []).append(v)
+
+for metric, values in sorted(all_metrics.items()):
+    avg = sum(values) / len(values)
+    total = sum(values)
+    print(f'{metric}:')
+    print(f'  Total: {total:.1f}  Avg: {avg:.1f}  Min: {min(values):.1f}  Max: {max(values):.1f}')
 " "$ANALYTICS_FILE"
+}
+
+cmd_compare() {
+  local id1="$1" id2="$2"
+  ensure_analytics
+  python3 -c "
+import json, sys
+
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+
+id1 = sys.argv[2]
+id2 = sys.argv[3]
+
+a1 = d['articles'].get(id1)
+a2 = d['articles'].get(id2)
+
+if not a1:
+    print(f'No data for article: {id1}')
+    sys.exit(0)
+if not a2:
+    print(f'No data for article: {id2}')
+    sys.exit(0)
+
+m1 = a1.get('metrics', {})
+m2 = a2.get('metrics', {})
+all_keys = sorted(set(list(m1.keys()) + list(m2.keys())))
+
+print(f'Comparison: {id1} vs {id2}')
+print(f'{\"Metric\":<16} {id1:<12} {id2:<12} Diff')
+print('-' * 52)
+for k in all_keys:
+    v1 = m1.get(k, 0)
+    v2 = m2.get(k, 0)
+    diff = v2 - v1
+    sign = '+' if diff > 0 else ''
+    print(f'{k:<16} {v1:<12.1f} {v2:<12.1f} {sign}{diff:.1f}')
+" "$ANALYTICS_FILE" "$id1" "$id2"
 }
 
 # Main dispatch
@@ -351,11 +461,13 @@ CMD="${1:-}"
 shift || true
 
 case "$CMD" in
-  record-metrics) cmd_record_metrics "$@" ;;
-  get-metrics) cmd_get_metrics "$@" ;;
+  record) cmd_record "$@" ;;
+  record-batch) cmd_record_batch "$@" ;;
+  query) cmd_query "$@" ;;
+  top) cmd_top "$@" ;;
   trends) cmd_trends ;;
-  top-performers) cmd_top_performers "$@" ;;
-  feed-taste) cmd_feed_taste ;;
-  reset) cmd_reset ;;
+  feed-taste) cmd_feed_taste "$@" ;;
+  summary) cmd_summary ;;
+  compare) cmd_compare "$@" ;;
   *) usage; exit 1 ;;
 esac

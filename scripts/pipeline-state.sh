@@ -10,7 +10,7 @@ usage() {
 Usage: pipeline-state.sh <command> <project_dir> [args...]
 
 Commands:
-  init <project_dir> <topic>           Initialize new article pipeline
+  init <project_dir> <topic> [--series <id>]  Initialize new article pipeline
   set-stage <project_dir> <stage>      Update current stage
   get-stage <project_dir>              Get current stage
   read <project_dir>                   Read full pipeline state
@@ -58,31 +58,61 @@ os.rename(tmp, target)
 }
 
 cmd_init() {
-  local project="$1" topic="${2:-}"
+  local project="$1"
+  shift
+  # Parse args: topic and optional --series <series_id>
+  local topic="" series_id=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --series)
+        series_id="${2:-}"
+        shift 2
+        ;;
+      *)
+        if [ -z "$topic" ]; then
+          topic="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
   ensure_state_dir "$project"
   local now
   now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  # Read defaults from config if available
+  local config_file="$HOME/.tech-essay-writer/config.json"
+  local config_language="en"
+  local config_max_rounds="3"
+  if [ -f "$config_file" ]; then
+    config_language=$(python3 -c "import json; print(json.load(open('$config_file')).get('language','en'))" 2>/dev/null || echo "en")
+    config_max_rounds=$(python3 -c "import json; print(json.load(open('$config_file')).get('max_refinement_rounds',3))" 2>/dev/null || echo "3")
+  fi
+
   local state
   state=$(python3 -c "
 import json, sys
+series_id = sys.argv[3] if sys.argv[3] else None
 d = {
     'topic': sys.argv[1],
     'stage': 'intake',
     'created_at': sys.argv[2],
     'updated_at': sys.argv[2],
-    'language': 'en',
+    'language': sys.argv[4],
     'materials_count': 0,
     'outline_variant': None,
     'draft_version': 0,
     'refinement_round': 0,
-    'max_refinement_rounds': 3,
+    'max_refinement_rounds': int(sys.argv[5]),
     'reviews': {},
     'review_panel_complete': False,
     'completed': False,
     'artifacts': []
 }
+if series_id:
+    d['series_id'] = series_id
 print(json.dumps(d))
-" "$topic" "$now")
+" "$topic" "$now" "$series_id" "$config_language" "$config_max_rounds")
   write_state "$project" "$state"
   echo "Pipeline initialized for: $topic"
 }

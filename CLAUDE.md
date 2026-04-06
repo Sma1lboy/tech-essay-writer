@@ -14,6 +14,8 @@ Key patterns:
 - **Cross-reference**: track published articles for internal linking
 - **Author profile**: persistent author identity + expertise areas
 - **Expertise graph**: topic authority tracking based on publishing history
+- **Article series**: multi-article series with narrative arc, reading order, and shared context
+- **Analytics feedback**: performance tracking + taste memory integration for data-driven improvements
 
 ## Directory Structure
 
@@ -28,12 +30,15 @@ scripts/
   build-agent-prompt.sh     # Generic prompt builder with context injection
   taste-memory.sh           # Persistent writing style preferences
   cross-reference.sh        # Published article registry
+  config.sh                # User configuration management (platforms, style, language)
   author-profile.sh        # Author identity management
   expertise-graph.sh       # Topic authority tracking
   influence-score.sh        # Influence potential predictor (novelty, SEO, social, audience)
   seo-metadata.sh           # SEO metadata generator (OG, meta, JSON-LD, keyword density)
   code-validate.sh          # Code example validator (syntax, imports, fragment detection)
   diagram-suggest.sh        # Diagram/image suggestion engine (Mermaid syntax, bilingual)
+  series-manager.sh         # Article series manager (reading order, narrative arc, shared context)
+  analytics-feedback.sh     # Analytics feedback loop (metrics tracking, taste memory integration)
   fetch-urls.sh             # URL content fetcher
   update-material.sh        # Update material with fetched content
 prompts/
@@ -76,6 +81,8 @@ tests/
   test_influence_seo.sh     # Influence score + SEO metadata tests
   test_templates_codevalidate.sh  # Template + code validation tests
   test_diagram_suggest.sh   # Diagram suggestion engine tests
+  test_series_analytics.sh  # Series manager + analytics feedback tests
+  test_config.sh            # Configuration system tests
   run-all.sh                # Test runner
 ```
 
@@ -111,7 +118,10 @@ During execution, `.essay-state/` contains:
 - Each reviewer agent gets fresh context (no knowledge of other reviewers)
 - Outline variants run in parallel with no cross-influence
 - User checkpoints at every stage transition
-- Taste memory persists at `~/.tech-essay-writer/`
+- Taste memory, config, author profile, series, and analytics persist at `~/.tech-essay-writer/`
+- Series context is injected into outline, writer, and formatter prompts when `series_id` is set
+- Analytics `feed-taste` writes `performance_insights` into taste-memory.json
+- Pipeline state accepts `--series <series_id>` at init to associate articles with a series
 
 ## Testing
 
