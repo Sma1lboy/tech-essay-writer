@@ -14,11 +14,13 @@ Commands:
   build-intake-summary  Build intake summary for user checkpoint
   build-research-prompt Build research agent prompt
   build-outline-prompts Build 3 parallel outline agent prompts
+  build-outline-critique-prompt  Build outline adversarial critique prompt
   build-writer-prompt   Build writer agent prompt
   build-review-prompts  Build 7 parallel review agent prompts
   build-refiner-prompt  Build refiner agent prompt (with round number)
   build-format-prompts  Build formatter prompts (internal|external|medium|devto|hashnode|wechat|juejin)
   build-social-prompt   Build social media package agent prompt
+  build-calibration-summary  Build human-readable calibration summary
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
 EOF
@@ -153,10 +155,13 @@ elif stage == 'research':
 elif stage == 'outline':
     # Check if any outline exists
     has_outline = any(os.path.exists(f'{state_dir}/outline-{v}.json') for v in ['A','B','C'])
+    has_critique = os.path.exists(f'{state_dir}/outline-critique.json')
     if has_outline and d.get('outline_variant'):
         print('draft')
-    elif has_outline:
+    elif has_outline and has_critique:
         print('outline_choice')
+    elif has_outline:
+        print('outline_critique')
     else:
         print('outline')
 elif stage == 'draft':
@@ -303,6 +308,60 @@ $(build_language_directive)
 3. Write your outline to \`.essay-state/outline-${variant}.json\`
 4. Make the hook SPECIFIC and SURPRISING — not generic
 5. Every section needs a clear purpose and transition
+PROMPT_END
+}
+
+cmd_build_outline_critique_prompt() {
+  local outline_a outline_b outline_c
+  outline_a=$(read_if_exists "$STATE_DIR/outline-A.json")
+  outline_b=$(read_if_exists "$STATE_DIR/outline-B.json")
+  outline_c=$(read_if_exists "$STATE_DIR/outline-C.json")
+  local research
+  research=$(read_if_exists "$STATE_DIR/research-synthesis.json")
+  local taste
+  taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
+
+  cat << PROMPT_END
+$(read_prompt "outline-critic.md")
+
+## Outline A
+
+\`\`\`json
+${outline_a:-"{}"}
+\`\`\`
+
+## Outline B
+
+\`\`\`json
+${outline_b:-"{}"}
+\`\`\`
+
+## Outline C
+
+\`\`\`json
+${outline_c:-"{}"}
+\`\`\`
+
+## Research Synthesis
+
+\`\`\`json
+${research:-"{}"}
+\`\`\`
+
+## Taste Memory
+
+\`\`\`json
+${taste:-"{}"}
+\`\`\`
+$(build_language_directive)
+
+## Instructions
+
+1. Read all 3 outlines and the research synthesis carefully
+2. Analyze each outline for structural strengths and weaknesses
+3. Compare the outlines across all dimensions
+4. Write your critique to \`.essay-state/outline-critique.json\`
+5. Be specific — reference exact section names, not vague observations
 PROMPT_END
 }
 
@@ -636,6 +695,71 @@ $(build_language_directive)
 PROMPT_END
 }
 
+cmd_build_calibration_summary() {
+  local calibration
+  calibration=$(read_if_exists "$STATE_DIR/review-calibration.json")
+  if [ -z "$calibration" ]; then
+    echo "No calibration data available. Run calibrate-reviews.sh first."
+    return
+  fi
+
+  python3 -c "
+import json, sys
+cal = json.loads(sys.argv[1])
+
+print('## Review Panel Calibration Report')
+print()
+
+# Panel average
+avg = cal.get('panel_average', 0)
+agreement = cal.get('agreement_score', 0)
+print(f'**Panel Average Score:** {avg}/10')
+print(f'**Inter-Reviewer Agreement:** {agreement}/10')
+print()
+
+# Normalized scores
+print('### Normalized Scores')
+for name, data in cal.get('normalized_scores', {}).items():
+    orig = data.get('original_rating', '?')
+    score = data.get('numeric_score', '?')
+    print(f'- {name}: {orig} → {score}/10')
+print()
+
+# Outliers
+outliers = cal.get('outliers', [])
+if outliers:
+    print('### Outlier Reviewers')
+    for o in outliers:
+        print(f'- **{o[\"reviewer\"]}** ({o[\"direction\"]}): scored {o[\"score\"]}/10 vs panel avg {o[\"panel_average\"]}/10')
+    print()
+
+# Blind spots
+spots = cal.get('blind_spots', [])
+if spots:
+    print('### Blind Spots (Uncovered Topics)')
+    for s in spots:
+        print(f'- **{s[\"topic\"]}**: {s[\"description\"]}')
+        expected = ', '.join(s['expected_reviewers'])
+    print(f'  Expected from: {expected}')
+    print()
+
+# Disagreements
+disag = cal.get('disagreements', [])
+if disag:
+    print('### Disagreements')
+    for d in disag:
+        print(f'- Rating spread: {d[\"spread\"]} points ({d[\"highest\"][\"reviewers\"]} high vs {d[\"lowest\"][\"reviewers\"]} low)')
+    print()
+
+# Notes
+notes = cal.get('calibration_notes', [])
+if notes:
+    print('### Calibration Notes')
+    for n in notes:
+        print(f'- {n}')
+" "$calibration"
+}
+
 cmd_check_convergence() {
   local round="${1:-1}"
   local adv_review
@@ -674,11 +798,13 @@ case "$CMD" in
   build-intake-summary) cmd_build_intake_summary ;;
   build-research-prompt) cmd_build_research_prompt ;;
   build-outline-prompts) cmd_build_outline_prompts "$@" ;;
+  build-outline-critique-prompt) cmd_build_outline_critique_prompt ;;
   build-writer-prompt) cmd_build_writer_prompt "$@" ;;
   build-review-prompts) cmd_build_review_prompts "$@" ;;
   build-refiner-prompt) cmd_build_refiner_prompt "$@" ;;
   build-format-prompts) cmd_build_format_prompts "$@" ;;
   build-social-prompt) cmd_build_social_prompt ;;
+  build-calibration-summary) cmd_build_calibration_summary ;;
   list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
   *) usage; exit 1 ;;

@@ -24,6 +24,7 @@ scripts/
   pipeline-state.sh         # Pipeline state management (atomic writes)
   intake-materials.sh       # Material intake (URL/note/file/code/theme/angle)
   aggregate-reviews.sh      # Aggregate 7 review results into panel summary
+  calibrate-reviews.sh      # Post-aggregate calibration: normalize scores, detect outliers/blind spots
   build-agent-prompt.sh     # Generic prompt builder with context injection
   taste-memory.sh           # Persistent writing style preferences
   cross-reference.sh        # Published article registry
@@ -34,6 +35,7 @@ scripts/
 prompts/
   researcher.md             # Research synthesis agent
   outliner.md               # Outline generator agent (3 variants)
+  outline-critic.md         # Outline adversarial critique agent (cross-comparison)
   writer.md                 # Draft writer agent
   reviewer-technical.md     # Technical accuracy reviewer
   reviewer-editor.md        # Editor/style reviewer
@@ -72,9 +74,11 @@ During execution, `.essay-state/` contains:
 - `materials.json` — structured input materials
 - `research-synthesis.json` — thesis, evidence, angles
 - `outline-{A,B,C}.json` — 3 outline variants
+- `outline-critique.json` — adversarial critique of all 3 outlines
 - `draft-v{N}.md` — draft versions
 - `review-{reviewer}.json` — individual review results
 - `review-panel-summary.json` — aggregated review panel
+- `review-calibration.json` — normalized scores, outliers, blind spots, agreement
 - `refinement-{N}-changes.json` — change logs per round
 - `final-internal.md` — company publication version
 - `final-external.md` — external publication version

@@ -162,8 +162,25 @@ Agent(description="Outline variant C (Narrative)", prompt=PROMPT_C)
 **IMPORTANT:** These MUST run in parallel with no cross-influence. Each agent
 gets fresh context. This is the design-shotgun pattern from gstack.
 
-**Checkpoint:** Read all 3 outlines, present side-by-side summary to user.
-Ask: "Which direction? (A/B/C, or mix elements)"
+After all 3 outlines are generated, dispatch the **outline adversarial critique agent**:
+
+```bash
+CRITIQUE_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-outline-critique-prompt)
+```
+
+Launch via Agent tool:
+```
+Agent(description="Outline adversarial critique", prompt=CRITIQUE_PROMPT)
+```
+
+The agent reads all 3 outlines + research synthesis, critiques each for structural
+weaknesses, and recommends the strongest variant. Output: `.essay-state/outline-critique.json`
+
+**Checkpoint:** Read all 3 outlines AND the critique. Present side-by-side summary
+with the critic's recommendation to the user.
+Ask: "The outline critic recommends variant X because [reason]. Which direction? (A/B/C, or mix elements)"
+
+The critic's recommendation helps inform the user's choice but does NOT override it.
 
 Record the choice:
 ```bash
@@ -220,14 +237,20 @@ Agent(description="External perspective review", prompt=PROMPT_EXT)
 Agent(description="Fact-checking review", prompt=PROMPT_FC)
 ```
 
-After all complete, aggregate and score:
+After all complete, aggregate, score, and calibrate:
 ```bash
 bash "$SKILL_DIR/scripts/aggregate-reviews.sh" "$PROJECT_DIR"
 bash "$SKILL_DIR/scripts/quality-score.sh" "$PROJECT_DIR" verbose
+bash "$SKILL_DIR/scripts/calibrate-reviews.sh" "$PROJECT_DIR"
 ```
 
-Read the panel summary and quality score. If score < 6.0 or any REJECT/REWRITE/WEAK:
-**Checkpoint:** "Quality score: X/10. The review panel found issues: [summary]. Proceed with refinement?"
+Read the calibration summary for insights on reviewer agreement and blind spots:
+```bash
+bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-calibration-summary
+```
+
+Read the panel summary, quality score, and calibration. If score < 6.0 or any REJECT/REWRITE/WEAK:
+**Checkpoint:** "Quality score: X/10. The review panel found issues: [summary]. Calibration: [agreement score, outliers, blind spots]. Proceed with refinement?"
 
 ```bash
 bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" refinement

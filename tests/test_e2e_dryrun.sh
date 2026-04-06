@@ -159,9 +159,74 @@ cat > "$PROJECT/.essay-state/outline-C.json" << 'EOF'
 }
 EOF
 
-# Check next-stage: outlines exist but no choice yet
+# Check next-stage: outlines exist but no critique yet
 stage=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" next-stage)
-assert_eq "outlines without choice = outline_choice" "outline_choice" "$stage"
+assert_eq "outlines without critique = outline_critique" "outline_critique" "$stage"
+
+# Verify outline critique prompt builds correctly
+critique_prompt=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-outline-critique-prompt)
+assert_contains "critique prompt has all 3 outlines" "Outline A" "$critique_prompt"
+assert_contains "critique prompt has outline B" "Outline B" "$critique_prompt"
+assert_contains "critique prompt has outline C" "Outline C" "$critique_prompt"
+assert_contains "critique prompt has research" "Multi-agent systems" "$critique_prompt"
+assert_contains "critique prompt has template" "Adversarial Critique" "$critique_prompt"
+
+# Simulate outline critique agent output
+cat > "$PROJECT/.essay-state/outline-critique.json" << 'EOF'
+{
+  "critic": "outline-adversarial",
+  "outlines_analyzed": ["A", "B", "C"],
+  "per_outline": {
+    "A": {
+      "variant_name": "Tutorial",
+      "flow_score": 7, "coherence_score": 7, "necessity_score": 8,
+      "hook_score": 8, "code_density_score": 9, "closing_score": 7,
+      "overall_score": 7.7,
+      "strengths": ["Strong code integration", "Practical and actionable"],
+      "weaknesses": ["Hook makes unsupported claim about line count"],
+      "fix_suggestions": ["Soften the 200-line claim or provide proof"]
+    },
+    "B": {
+      "variant_name": "Deep Dive",
+      "flow_score": 9, "coherence_score": 9, "necessity_score": 8,
+      "hook_score": 7, "code_density_score": 7, "closing_score": 8,
+      "overall_score": 8.0,
+      "strengths": ["Best argument flow", "Strong systems thinking parallel"],
+      "weaknesses": ["Hook is slightly cliché", "Could use more code"],
+      "fix_suggestions": ["Rewrite hook with a specific incident"]
+    },
+    "C": {
+      "variant_name": "Narrative",
+      "flow_score": 8, "coherence_score": 8, "necessity_score": 7,
+      "hook_score": 9, "code_density_score": 6, "closing_score": 8,
+      "overall_score": 7.7,
+      "strengths": ["Most engaging opening", "Relatable war story"],
+      "weaknesses": ["Code density too low for target audience", "Investigation section could drag"],
+      "fix_suggestions": ["Add inline code earlier in the narrative"]
+    }
+  },
+  "cross_comparison": {
+    "best_thesis_handling": {"variant": "B", "reason": "Most rigorous argument structure"},
+    "strongest_opening": {"variant": "C", "reason": "Incident-based hook creates urgency"},
+    "best_code_integration": {"variant": "A", "reason": "Code woven into every section"},
+    "best_audience_match": {"variant": "B", "reason": "Matches intermediate technical audience"},
+    "most_innovative_structure": {"variant": "C", "reason": "Narrative arc is uncommon in tech writing"}
+  },
+  "recommendation": {
+    "recommended_variant": "B",
+    "confidence": "medium",
+    "reasoning": "B has the strongest argument flow and best matches the target audience. Consider combining B's structure with C's hook for maximum impact.",
+    "runner_up": "C",
+    "mix_suggestion": "Use C's incident-based hook to open B's deep-dive structure"
+  }
+}
+EOF
+
+assert_file "outline-critique.json" "$PROJECT/.essay-state/outline-critique.json"
+
+# Check next-stage: outlines + critique exist but no choice yet
+stage=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" next-stage)
+assert_eq "outlines+critique without choice = outline_choice" "outline_choice" "$stage"
 
 # Simulate user choosing variant B
 bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-field "$PROJECT" outline_variant "B" >/dev/null
@@ -299,6 +364,24 @@ assert_file "panel summary exists" "$PROJECT/.essay-state/review-panel-summary.j
 # Verify panel summary
 panel=$(cat "$PROJECT/.essay-state/review-panel-summary.json")
 assert_contains "panel has prioritized actions" "prioritized_actions" "$panel"
+
+# Calibrate reviews
+cal_out=$(bash "$SCRIPT_DIR/scripts/calibrate-reviews.sh" "$PROJECT")
+assert_contains "calibration has panel_average" "panel_average" "$cal_out"
+assert_contains "calibration has agreement_score" "agreement_score" "$cal_out"
+assert_file "review-calibration.json" "$PROJECT/.essay-state/review-calibration.json"
+
+# Verify calibration content
+cal_content=$(cat "$PROJECT/.essay-state/review-calibration.json")
+assert_contains "calibration has normalized_scores" "normalized_scores" "$cal_content"
+assert_contains "calibration has outliers field" "outliers" "$cal_content"
+assert_contains "calibration has blind_spots field" "blind_spots" "$cal_content"
+
+# Build calibration summary
+cal_summary=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-calibration-summary)
+assert_contains "calibration summary has header" "Calibration Report" "$cal_summary"
+assert_contains "calibration summary has normalized scores" "Normalized Scores" "$cal_summary"
+assert_contains "calibration summary has agreement" "Agreement" "$cal_summary"
 
 stage=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" next-stage)
 assert_eq "after review → refinement" "refinement" "$stage"

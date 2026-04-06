@@ -230,6 +230,124 @@ summary=$(cat "$PROJECT3/.essay-state/review-panel-summary.json")
 assert_contains "summary has ratings" "ratings" "$summary"
 assert_contains "summary has prioritized actions" "prioritized_actions" "$summary"
 
+# --- calibrate-reviews.sh tests ---
+
+echo "=== calibrate-reviews.sh ==="
+
+PROJECT4="$TMPDIR/test-project-4"
+mkdir -p "$PROJECT4/.essay-state"
+
+# Create mock reviews with varying ratings for calibration testing
+cat > "$PROJECT4/.essay-state/review-technical.json" << 'EOF'
+{
+  "reviewer": "technical",
+  "rating": "PASS",
+  "summary": "Looks good",
+  "issues": [],
+  "code_issues": [{"code_block": "example 1", "issue": "minor typo"}]
+}
+EOF
+
+cat > "$PROJECT4/.essay-state/review-editor.json" << 'EOF'
+{
+  "reviewer": "editor",
+  "rating": "NEEDS_EDITING",
+  "summary": "Needs polish",
+  "issues": [{"severity": "major", "issue": "Hook is weak"}]
+}
+EOF
+
+cat > "$PROJECT4/.essay-state/review-adversarial.json" << 'EOF'
+{
+  "reviewer": "adversarial",
+  "rating": "WEAK",
+  "summary": "Premise is fundamentally flawed",
+  "attacks": [{"target": "thesis", "attack": "No evidence", "severity": "devastating"}],
+  "logic_gaps": ["Main argument unsupported"],
+  "premise_valid": false,
+  "premise_attack": "Thesis contradicts known results"
+}
+EOF
+
+cat > "$PROJECT4/.essay-state/review-audience.json" << 'EOF'
+{
+  "reviewer": "audience",
+  "rating": "WOULD_SHARE",
+  "summary": "Great for target audience",
+  "issues": []
+}
+EOF
+
+cat > "$PROJECT4/.essay-state/review-seo.json" << 'EOF'
+{
+  "reviewer": "seo",
+  "rating": "NEEDS_WORK",
+  "summary": "Title needs improvement",
+  "title_analysis": {"searchability": 4},
+  "social_package": {"hn_title": "test"},
+  "issues": [{"severity": "minor", "issue": "Title too generic"}]
+}
+EOF
+
+cat > "$PROJECT4/.essay-state/review-external.json" << 'EOF'
+{
+  "reviewer": "external",
+  "rating": "NEEDS_CONTEXT",
+  "summary": "Jargon not explained",
+  "jargon_issues": [{"term": "context window", "suggestion": "define it"}],
+  "assumed_knowledge": [{"assumption": "knows ML basics"}],
+  "issues": [{"severity": "minor", "issue": "Jargon unclear"}]
+}
+EOF
+
+cat > "$PROJECT4/.essay-state/review-factcheck.json" << 'EOF'
+{
+  "reviewer": "factcheck",
+  "rating": "VERIFIED",
+  "summary": "Claims check out",
+  "claims_checked": 5,
+  "claims_verified": 4,
+  "code_verification": [{"code_block": "example", "syntax_valid": true}],
+  "issues": []
+}
+EOF
+
+out=$(bash "$SCRIPT_DIR/scripts/calibrate-reviews.sh" "$PROJECT4")
+assert_contains "calibrate output has panel_average" "panel_average" "$out"
+assert_contains "calibrate output has agreement_score" "agreement_score" "$out"
+assert_file_exists "calibration file created" "$PROJECT4/.essay-state/review-calibration.json"
+
+# Verify calibration content
+cal=$(cat "$PROJECT4/.essay-state/review-calibration.json")
+assert_contains "calibration has normalized_scores" "normalized_scores" "$cal"
+assert_contains "calibration has outliers" "outliers" "$cal"
+assert_contains "calibration has blind_spots" "blind_spots" "$cal"
+assert_contains "calibration has agreement_score" "agreement_score" "$cal"
+assert_contains "calibration has disagreements" "disagreements" "$cal"
+
+# Verify outlier detection: adversarial rated WEAK (3) while audience rated WOULD_SHARE (8)
+# The spread is large enough that at least one should be flagged
+cal_outliers=$(python3 -c "import json; cal=json.load(open('$PROJECT4/.essay-state/review-calibration.json')); print(len(cal.get('outliers', [])))")
+if [ "$cal_outliers" -ge 1 ]; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1)); echo "FAIL: calibration should detect at least 1 outlier (harsh adversarial vs lenient audience)"
+fi
+
+# Verify the numeric score for adversarial is 3 (WEAK)
+adv_score=$(python3 -c "import json; cal=json.load(open('$PROJECT4/.essay-state/review-calibration.json')); print(cal['normalized_scores']['adversarial']['numeric_score'])")
+assert_eq "adversarial WEAK maps to 3" "3" "$adv_score"
+
+# Verify the numeric score for audience is 8 (WOULD_SHARE)
+aud_score=$(python3 -c "import json; cal=json.load(open('$PROJECT4/.essay-state/review-calibration.json')); print(cal['normalized_scores']['audience']['numeric_score'])")
+assert_eq "audience WOULD_SHARE maps to 8" "8" "$aud_score"
+
+# Test calibration with no review files (edge case)
+PROJECT5="$TMPDIR/test-project-5"
+mkdir -p "$PROJECT5/.essay-state"
+out=$(bash "$SCRIPT_DIR/scripts/calibrate-reviews.sh" "$PROJECT5")
+assert_contains "empty project returns error or empty" "error" "$out"
+
 # --- Results ---
 echo ""
 echo "================================"

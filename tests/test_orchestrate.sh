@@ -130,9 +130,36 @@ for v in A B C; do
 EOF
 done
 
-# --- next-stage: outlines exist but no choice = outline_choice ---
+# --- next-stage: outlines exist but no critique = outline_critique ---
 stage=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" next-stage)
-assert_eq "next-stage outlines but no choice = outline_choice" "outline_choice" "$stage"
+assert_eq "next-stage outlines but no critique = outline_critique" "outline_critique" "$stage"
+
+# --- build-outline-critique-prompt ---
+out=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-outline-critique-prompt)
+assert_contains "critique prompt has template" "Outline Adversarial Critique" "$out"
+assert_contains "critique prompt has outline A" "Variant A" "$out"
+assert_contains "critique prompt has outline B" "Variant B" "$out"
+assert_contains "critique prompt has outline C" "Variant C" "$out"
+assert_contains "critique prompt has research" "Test thesis" "$out"
+assert_not_empty "critique prompt is non-empty" "$out"
+
+# --- Create mock outline critique ---
+cat > "$PROJECT/.essay-state/outline-critique.json" << 'EOF'
+{
+  "critic": "outline-adversarial",
+  "outlines_analyzed": ["A", "B", "C"],
+  "per_outline": {
+    "A": {"overall_score": 7.2, "strengths": ["Good code density"], "weaknesses": ["Weak hook"]},
+    "B": {"overall_score": 8.1, "strengths": ["Strong argument flow"], "weaknesses": ["Too long"]},
+    "C": {"overall_score": 7.5, "strengths": ["Engaging narrative"], "weaknesses": ["Less technical depth"]}
+  },
+  "recommendation": {"recommended_variant": "B", "confidence": "high", "reasoning": "Best thesis handling"}
+}
+EOF
+
+# --- next-stage: outlines + critique but no choice = outline_choice ---
+stage=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" next-stage)
+assert_eq "next-stage outlines+critique but no choice = outline_choice" "outline_choice" "$stage"
 
 # --- Set outline choice ---
 bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-field "$PROJECT" outline_variant "B" >/dev/null
@@ -239,6 +266,15 @@ assert_contains "refiner prompt has round" "Round: 1" "$out"
 # --- check-convergence: VULNERABLE = CONTINUE ---
 result=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" check-convergence 1)
 assert_eq "convergence check round 1 = CONTINUE" "CONTINUE" "$result"
+
+# --- Calibrate reviews ---
+cal_out=$(bash "$SCRIPT_DIR/scripts/calibrate-reviews.sh" "$PROJECT")
+assert_contains "calibrate has panel_average" "panel_average" "$cal_out"
+
+# --- build-calibration-summary ---
+cal_summary=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-calibration-summary)
+assert_contains "calibration summary has title" "Calibration Report" "$cal_summary"
+assert_contains "calibration summary has scores" "Normalized Scores" "$cal_summary"
 
 # --- Simulate convergence: update adversarial to SOLID ---
 cat > "$PROJECT/.essay-state/review-adversarial.json" << 'EOF'
