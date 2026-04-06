@@ -27,6 +27,10 @@ ensure_xref() {
 }
 
 cmd_add() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add requires <title> <url> [tags...]" >&2
+    return 1
+  fi
   local title="$1" url="$2"
   shift 2
   local tags="$*"
@@ -62,6 +66,10 @@ print(f'Added: {title} ({article_id})')
 }
 
 cmd_search() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: search requires <query>" >&2
+    return 1
+  fi
   local query="$1"
   ensure_xref
   python3 -c "
@@ -113,6 +121,10 @@ else:
 }
 
 cmd_suggest() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: suggest requires <topic>" >&2
+    return 1
+  fi
   local topic="$1"
   ensure_xref
   python3 -c "
@@ -143,6 +155,10 @@ else:
 }
 
 cmd_remove() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: remove requires <article_id>" >&2
+    return 1
+  fi
   local article_id="$1"
   ensure_xref
   python3 -c "

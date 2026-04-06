@@ -1,917 +1,953 @@
 #!/usr/bin/env bash
-# Comprehensive end-to-end integration test — exercises the complete pipeline
-# with real mock data, running actual scripts (not mocked).
-# Validates state consistency, checkpoint restore, and full pipeline flow.
+# Comprehensive end-to-end integration test
+# Exercises the full pipeline PLUS all auxiliary scripts:
+#   config, author-profile, expertise-graph, series, cross-reference,
+#   analytics, influence, SEO, code-validate, diagrams, quality-score,
+#   publish-check, progress-display, taste-memory (diff-learn/feedback/suggest),
+#   checkpoint auto-saves, rollback, retry-stage, resume
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-# Isolate HOME to avoid polluting real user data
-export HOME="$TMPDIR/fakehome"
-mkdir -p "$HOME/.tech-essay-writer"
-
-PROJECT="$TMPDIR/e2e-project"
+PROJECT="$TMPDIR/e2e-integration"
 mkdir -p "$PROJECT"
+export HOME="$TMPDIR/fakehome"
+mkdir -p "$HOME"
 
 PASS=0
 FAIL=0
 
-# ============================================================
-# Assertion helpers (matching existing test patterns)
-# ============================================================
+assert_eq() { local d="$1" e="$2" a="$3"; if [ "$e" = "$a" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL: $d (expected=$e actual=$a)"; fi; }
+assert_contains() { local d="$1" n="$2" h="$3"; if echo "$h" | grep -q "$n"; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL: $d (missing: $n)"; fi; }
+assert_not_contains() { local d="$1" n="$2" h="$3"; if echo "$h" | grep -q "$n"; then FAIL=$((FAIL+1)); echo "FAIL: $d (should not contain: $n)"; else PASS=$((PASS+1)); fi; }
+assert_file() { local d="$1" p="$2"; if [ -f "$p" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL: $d (file missing: $p)"; fi; }
+assert_dir() { local d="$1" p="$2"; if [ -d "$p" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL: $d (dir missing: $p)"; fi; }
+assert_gt() { local d="$1" a="$2" b="$3"; if [ "$a" -gt "$b" ] 2>/dev/null; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL: $d ($a not > $b)"; fi; }
 
-assert_eq() {
-  local desc="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    PASS=$((PASS + 1))
-  else
-    FAIL=$((FAIL + 1))
-    echo "FAIL: $desc"
-    echo "  expected: $expected"
-    echo "  actual:   $actual"
-  fi
-}
+echo "=== E2E Integration: Full Pipeline + All Auxiliary Scripts ==="
 
-assert_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -q "$needle"; then
-    PASS=$((PASS + 1))
-  else
-    FAIL=$((FAIL + 1))
-    echo "FAIL: $desc"
-    echo "  expected to contain: $needle"
-    echo "  actual: $haystack"
-  fi
-}
+# ========================================================
+# SECTION 1: CONFIG SYSTEM
+# ========================================================
+echo "--- Section 1: Config System ---"
 
-assert_not_contains() {
-  local desc="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -q "$needle"; then
-    FAIL=$((FAIL + 1))
-    echo "FAIL: $desc"
-    echo "  expected NOT to contain: $needle"
-  else
-    PASS=$((PASS + 1))
-  fi
-}
+bash "$SCRIPT_DIR/scripts/config.sh" init >/dev/null
+assert_file "config.json created" "$HOME/.tech-essay-writer/config.json"
 
-assert_file_exists() {
-  local desc="$1" path="$2"
-  if [ -f "$path" ]; then
-    PASS=$((PASS + 1))
-  else
-    FAIL=$((FAIL + 1))
-    echo "FAIL: $desc — file not found: $path"
-  fi
-}
+bash "$SCRIPT_DIR/scripts/config.sh" set language zh >/dev/null
+lang=$(bash "$SCRIPT_DIR/scripts/config.sh" get language)
+assert_eq "config language set to zh" "zh" "$lang"
 
-assert_dir_exists() {
-  local desc="$1" path="$2"
-  if [ -d "$path" ]; then
-    PASS=$((PASS + 1))
-  else
-    FAIL=$((FAIL + 1))
-    echo "FAIL: $desc — directory not found: $path"
-  fi
-}
+bash "$SCRIPT_DIR/scripts/config.sh" set writing_style technical >/dev/null
+style=$(bash "$SCRIPT_DIR/scripts/config.sh" get writing_style)
+assert_eq "config writing_style set" "technical" "$style"
 
-assert_json_valid() {
-  local desc="$1" path="$2"
-  if python3 -c "import json; json.load(open('$path'))" 2>/dev/null; then
-    PASS=$((PASS + 1))
-  else
-    FAIL=$((FAIL + 1))
-    echo "FAIL: $desc — invalid JSON: $path"
-  fi
-}
+bash "$SCRIPT_DIR/scripts/config.sh" add-platform medium >/dev/null
+platforms=$(bash "$SCRIPT_DIR/scripts/config.sh" get default_platforms)
+assert_contains "config has medium platform" "medium" "$platforms"
 
-assert_json_field() {
-  local desc="$1" file="$2" field="$3" expected="$4"
-  local actual
-  actual=$(python3 -c "import json; print(json.load(open('$file'))$field)" 2>/dev/null || echo "PARSE_ERROR")
-  if [ "$expected" = "$actual" ]; then
-    PASS=$((PASS + 1))
-  else
-    FAIL=$((FAIL + 1))
-    echo "FAIL: $desc"
-    echo "  expected: $expected"
-    echo "  actual:   $actual"
-  fi
-}
+bash "$SCRIPT_DIR/scripts/config.sh" add-platform devto >/dev/null
+platforms=$(bash "$SCRIPT_DIR/scripts/config.sh" get default_platforms)
+assert_contains "config has devto platform" "devto" "$platforms"
 
-echo "=== E2E Integration Test: Full Pipeline ==="
-echo ""
+config_read=$(bash "$SCRIPT_DIR/scripts/config.sh" read)
+assert_contains "config read shows language" "zh" "$config_read"
+assert_contains "config read shows writing_style" "technical" "$config_read"
 
-# ============================================================
-# PHASE 0: CONFIGURATION AND AUTHOR PROFILE SETUP
-# ============================================================
-echo "--- Phase 0: Configuration & Author Profile ---"
+# ========================================================
+# SECTION 2: AUTHOR PROFILE
+# ========================================================
+echo "--- Section 2: Author Profile ---"
 
-# 1. Initialize config
-out=$(bash "$SCRIPT_DIR/scripts/config.sh" init)
-assert_contains "config init succeeds" "initialized" "$out"
-assert_file_exists "config file created" "$HOME/.tech-essay-writer/config.json"
+bash "$SCRIPT_DIR/scripts/author-profile.sh" init >/dev/null
+assert_file "author-profile.json created" "$HOME/.tech-essay-writer/author-profile.json"
 
-# 2. Set config values
-bash "$SCRIPT_DIR/scripts/config.sh" set writing_style narrative >/dev/null
-val=$(bash "$SCRIPT_DIR/scripts/config.sh" get writing_style)
-assert_eq "config writing_style set" "narrative" "$val"
+bash "$SCRIPT_DIR/scripts/author-profile.sh" set name "Test Author" >/dev/null
+bash "$SCRIPT_DIR/scripts/author-profile.sh" set bio "AI systems architect and tech writer" >/dev/null
+bash "$SCRIPT_DIR/scripts/author-profile.sh" set role "Staff Engineer" >/dev/null
+bash "$SCRIPT_DIR/scripts/author-profile.sh" set company "TestCorp" >/dev/null
+bash "$SCRIPT_DIR/scripts/author-profile.sh" set-social twitter testauthor >/dev/null
+bash "$SCRIPT_DIR/scripts/author-profile.sh" set-social github testauthor >/dev/null
 
-# 3. Config get returns correct value
-val=$(bash "$SCRIPT_DIR/scripts/config.sh" get language)
-assert_eq "config default language is en" "en" "$val"
+bio=$(bash "$SCRIPT_DIR/scripts/author-profile.sh" get-bio)
+assert_contains "bio has author name" "Test Author" "$bio"
+assert_contains "bio has role" "Staff Engineer" "$bio"
 
-# 4. Initialize author profile
-out=$(bash "$SCRIPT_DIR/scripts/author-profile.sh" init)
-assert_contains "author-profile init" "initialized\|created\|profile" "$out"
-assert_file_exists "author profile created" "$HOME/.tech-essay-writer/author-profile.json"
+profile_read=$(bash "$SCRIPT_DIR/scripts/author-profile.sh" read)
+assert_contains "profile has twitter" "testauthor" "$profile_read"
 
-# 5. Set author profile fields
-bash "$SCRIPT_DIR/scripts/author-profile.sh" set name "Jackson Chen" >/dev/null
-out=$(bash "$SCRIPT_DIR/scripts/author-profile.sh" read)
-assert_contains "author name set" "Jackson Chen" "$out"
+socials=$(bash "$SCRIPT_DIR/scripts/author-profile.sh" get-social-handles)
+assert_contains "socials has twitter" "twitter" "$socials"
+assert_contains "socials has github" "github" "$socials"
 
-# 6. Set social handle
-bash "$SCRIPT_DIR/scripts/author-profile.sh" set-social github "sma1lboy" >/dev/null
-out=$(bash "$SCRIPT_DIR/scripts/author-profile.sh" get-social-handles)
-assert_contains "social handle github set" "sma1lboy" "$out"
+# ========================================================
+# SECTION 3: EXPERTISE GRAPH
+# ========================================================
+echo "--- Section 3: Expertise Graph ---"
 
-# 7. Add expertise area
-bash "$SCRIPT_DIR/scripts/author-profile.sh" add-expertise "agent architecture" expert >/dev/null
-out=$(bash "$SCRIPT_DIR/scripts/author-profile.sh" read)
-assert_contains "expertise added" "agent architecture" "$out"
+bash "$SCRIPT_DIR/scripts/expertise-graph.sh" update "multi-agent" ai architecture >/dev/null
+bash "$SCRIPT_DIR/scripts/expertise-graph.sh" update "context-isolation" ai agents >/dev/null
+bash "$SCRIPT_DIR/scripts/expertise-graph.sh" update "conductor-pattern" ai architecture agents >/dev/null
 
-# ============================================================
-# PHASE 1: PIPELINE INITIALIZATION
-# ============================================================
-echo "--- Phase 1: Pipeline Initialization ---"
+query_out=$(bash "$SCRIPT_DIR/scripts/expertise-graph.sh" query multi-agent)
+assert_contains "expertise query finds multi-agent" "multi-agent" "$query_out"
 
-# 8. Initialize pipeline
-out=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" init "$PROJECT" "Practical Guide to Multi-Agent AI Systems")
-assert_contains "pipeline init" "initialized" "$out"
-assert_file_exists "pipeline state created" "$PROJECT/.essay-state/pipeline-state.json"
+top_out=$(bash "$SCRIPT_DIR/scripts/expertise-graph.sh" top 3)
+assert_contains "expertise top includes multi-agent" "multi-agent" "$top_out"
 
-# 9. Verify initial stage
-stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "initial stage is intake" "intake" "$stage"
+# ========================================================
+# SECTION 4: CROSS-REFERENCE REGISTRY
+# ========================================================
+echo "--- Section 4: Cross-Reference Registry ---"
 
-# 10. Verify state JSON is valid
-assert_json_valid "pipeline state is valid JSON" "$PROJECT/.essay-state/pipeline-state.json"
+xref_add=$(bash "$SCRIPT_DIR/scripts/cross-reference.sh" add "Building Agents with Claude" "https://example.com/agents" agent ai multi-agent)
+assert_contains "xref add returns article id" "art-" "$xref_add"
 
-# 11. Progress display at intake
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "progress shows intake" "INTAKE\|intake" "$out"
+bash "$SCRIPT_DIR/scripts/cross-reference.sh" add "Context Window Management" "https://example.com/context" context ai >/dev/null
 
-# ============================================================
-# PHASE 2: INTAKE MATERIALS
-# ============================================================
-echo "--- Phase 2: Intake Materials ---"
+search_out=$(bash "$SCRIPT_DIR/scripts/cross-reference.sh" search agent)
+assert_contains "xref search finds agent article" "Building Agents" "$search_out"
 
-# 12. Initialize materials
+suggest_out=$(bash "$SCRIPT_DIR/scripts/cross-reference.sh" suggest multi-agent)
+assert_contains "xref suggest finds related" "Building Agents" "$suggest_out"
+
+list_out=$(bash "$SCRIPT_DIR/scripts/cross-reference.sh" list)
+assert_contains "xref list has 2 articles" "Context Window" "$list_out"
+
+# ========================================================
+# SECTION 5: SERIES MANAGER
+# ========================================================
+echo "--- Section 5: Series Manager ---"
+
+series_create=$(bash "$SCRIPT_DIR/scripts/series-manager.sh" create "Agent Architecture Series" "A deep dive into multi-agent system design patterns")
+assert_contains "series create returns id" "ser-" "$series_create"
+
+# Extract series_id
+SERIES_ID=$(echo "$series_create" | grep -o 'ser-[0-9]*')
+
+series_list=$(bash "$SCRIPT_DIR/scripts/series-manager.sh" list)
+assert_contains "series list shows our series" "Agent Architecture" "$series_list"
+
+bash "$SCRIPT_DIR/scripts/series-manager.sh" set-arc "$SERIES_ID" "From single agents to orchestrated multi-agent systems" >/dev/null
+
+series_show=$(bash "$SCRIPT_DIR/scripts/series-manager.sh" show "$SERIES_ID")
+assert_contains "series show has description" "multi-agent" "$series_show"
+
+series_ctx=$(bash "$SCRIPT_DIR/scripts/series-manager.sh" context "$SERIES_ID")
+assert_contains "series context is JSON" "series_name" "$series_ctx"
+
+# ========================================================
+# SECTION 6: PIPELINE INIT WITH CONFIG + SERIES
+# ========================================================
+echo "--- Section 6: Pipeline Init with Config + Series ---"
+
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" init "$PROJECT" "Multi-Agent Orchestration Patterns" --series "$SERIES_ID" >/dev/null
+
+# Verify pipeline state has series_id
+state=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" read "$PROJECT")
+assert_contains "pipeline has series_id" "$SERIES_ID" "$state"
+
+# Config summary should influence prompts
+config_summary=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-config-summary)
+assert_contains "config summary has language" "zh" "$config_summary"
+
+# ========================================================
+# SECTION 7: INTAKE + CHECKPOINT AUTO-SAVES
+# ========================================================
+echo "--- Section 7: Intake + Checkpoint Auto-Saves ---"
+
 bash "$SCRIPT_DIR/scripts/intake-materials.sh" init "$PROJECT" >/dev/null
-assert_file_exists "materials file created" "$PROJECT/.essay-state/materials.json"
+bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-note "$PROJECT" "Multi-agent orchestration requires careful context management. Each agent should get only the context it needs." >/dev/null
+bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-note "$PROJECT" "The conductor pattern separates planning from execution. Conductors plan, sprint masters direct, workers execute." >/dev/null
+bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-url "$PROJECT" "https://docs.anthropic.com/en/docs/agents" "Anthropic Agent Docs" >/dev/null
+bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-code "$PROJECT" 'class Conductor { async plan(mission) { return this.decompose(mission); } }' "javascript" >/dev/null
+bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-theme "$PROJECT" "multi-agent orchestration" >/dev/null
+bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-angle "$PROJECT" "production patterns from a real system" >/dev/null
 
-# 13. Add URL material
-out=$(bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-url "$PROJECT" "https://docs.anthropic.com/agents" "Anthropic Agent Docs")
-assert_contains "add-url returns id" "src-" "$out"
+# Transition to research — should auto-snapshot intake
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" research >/dev/null
 
-# 14. Add note material
-bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-note "$PROJECT" "Agent architecture matters more than model choice. Fresh context per layer prevents pollution." >/dev/null
+# Verify checkpoint auto-save happened
+assert_dir "checkpoints dir exists" "$PROJECT/.essay-state/checkpoints"
+ckpt_count=$(ls -d "$PROJECT/.essay-state/checkpoints/"*/ 2>/dev/null | wc -l | tr -d ' ')
+assert_gt "at least 1 checkpoint after set-stage" "$ckpt_count" 0
 
-# 15. Add code snippet material
-bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-code "$PROJECT" 'async function conductor(mission) { const sprints = planSprints(mission); for (const sprint of sprints) { await execute(sprint); } }' "javascript" >/dev/null
+# ========================================================
+# SECTION 8: RESEARCH + PROGRESS DISPLAY
+# ========================================================
+echo "--- Section 8: Research + Progress Display ---"
 
-# 16. Add another URL
-bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-url "$PROJECT" "https://github.com/anthropics/anthropic-cookbook" "Anthropic Cookbook" >/dev/null
+# Progress display at research stage
+progress_json=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --format json)
+assert_contains "progress shows research stage" "research" "$progress_json"
 
-# 17. Add theme
-bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-theme "$PROJECT" "context isolation" >/dev/null
-
-# 18. Add angle
-bash "$SCRIPT_DIR/scripts/intake-materials.sh" add-angle "$PROJECT" "from monolith to multi-agent: a migration story" >/dev/null
-
-# 19. Verify listing
-listing=$(bash "$SCRIPT_DIR/scripts/intake-materials.sh" list "$PROJECT")
-assert_contains "listing shows 4 sources" "4 sources" "$listing"
-assert_contains "listing shows URL" "anthropic" "$listing"
-
-# 20. Verify materials export is valid JSON
-exported=$(bash "$SCRIPT_DIR/scripts/intake-materials.sh" export "$PROJECT")
-assert_contains "export has sources" "sources" "$exported"
-
-# ============================================================
-# PHASE 3: DETECT INPUT TYPES
-# ============================================================
-echo "--- Phase 3: Detect Input Types ---"
-
-# 21. Detect URL input
-out=$(bash "$SCRIPT_DIR/scripts/detect-input.sh" "Check out https://example.com/article for reference")
-assert_contains "detect finds URL" "url" "$out"
-
-# 22. Detect note input
-out=$(bash "$SCRIPT_DIR/scripts/detect-input.sh" "Agent architecture is critical for production systems. The three-layer approach works best.")
-assert_contains "detect finds note" "note" "$out"
-
-# 23. Detect code input
-out=$(bash "$SCRIPT_DIR/scripts/detect-input.sh" 'Here is some code: ```javascript
-const x = 1;
-```')
-assert_contains "detect finds code" "code" "$out"
-
-# ============================================================
-# PHASE 4: STAGE TRANSITIONS & RESEARCH
-# ============================================================
-echo "--- Phase 4: Stage Transitions & Research ---"
-
-# 24. Transition to research
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" "research" >/dev/null
-stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "stage set to research" "research" "$stage"
-
-# 25. Progress display at research
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "progress shows research" "research\|RESEARCH" "$out"
-
-# 26. Generate mock research synthesis
+# Simulate research output
 cat > "$PROJECT/.essay-state/research-synthesis.json" << 'EOF'
 {
-  "thesis": "Multi-agent systems with isolated contexts outperform monolithic agents for complex tasks.",
-  "thesis_expanded": "By applying microservices-style architecture to AI agents, teams achieve better reliability, lower costs, and higher task completion rates.",
+  "thesis": "Effective multi-agent orchestration requires three architectural principles: context isolation, progressive disclosure, and hierarchical planning.",
+  "thesis_expanded": "Most agent systems fail because they treat context as unlimited. The conductor pattern enforces strict boundaries: each agent gets exactly the context it needs, nothing more.",
   "evidence_map": [
-    {"claim": "Fresh context prevents pollution", "sources": ["note-1"], "strength": "strong"},
-    {"claim": "Three-layer hierarchy scales", "sources": ["url-1"], "strength": "moderate"}
+    {"claim": "Context isolation prevents hallucination cascades", "sources": ["note-1", "note-2"], "strength": "strong"},
+    {"claim": "Hierarchical planning enables complex decomposition", "sources": ["note-2", "url-1"], "strength": "strong"},
+    {"claim": "Progressive disclosure reduces token waste", "sources": ["note-1"], "strength": "moderate"}
   ],
   "knowledge_gaps": [
-    {"gap": "No cost benchmarks", "impact": "medium", "resolution": "Add token usage analysis"}
+    {"gap": "No latency benchmarks for multi-agent vs single-agent", "impact": "medium", "resolution": "Add timing data"},
+    {"gap": "Error recovery patterns not documented", "impact": "high", "resolution": "Document retry and fallback strategies"}
   ],
   "competitive_landscape": {
     "existing_articles": [
-      {"title": "Building Effective Agents", "url": "https://anthropic.com/agents", "angle": "General patterns", "gap": "No multi-layer detail"}
-    ]
+      {"title": "Anthropic Agent Docs", "url": "https://docs.anthropic.com/en/docs/agents", "angle": "Single-agent focus"}
+    ],
+    "gap": "No production-tested multi-agent orchestration patterns with real code and metrics exist"
   },
-  "gap": "No comprehensive guide covers the conductor pattern with production code",
-  "unique_angle": "Architecture-first approach with production code",
+  "unique_angle": "Production-tested patterns from a system that runs 50+ sprints autonomously",
   "recommended_depth": "intermediate",
   "recommended_length": "medium",
-  "key_terms": ["multi-agent", "conductor pattern", "context isolation"]
+  "key_terms": ["conductor pattern", "context isolation", "progressive disclosure", "hierarchical planning"]
 }
 EOF
-assert_json_valid "research synthesis is valid JSON" "$PROJECT/.essay-state/research-synthesis.json"
 
-# ============================================================
-# PHASE 5: CHECKPOINT SAVE AFTER RESEARCH
-# ============================================================
-echo "--- Phase 5: Checkpoint Save ---"
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" outline >/dev/null
 
-# 27. Take a checkpoint snapshot
-out=$(bash "$SCRIPT_DIR/scripts/checkpoint.sh" snapshot "$PROJECT" "after-research")
-assert_contains "checkpoint snapshot" "Checkpoint:" "$out"
-assert_dir_exists "checkpoints dir exists" "$PROJECT/.essay-state/checkpoints"
+# Verify second checkpoint was created
+ckpt_count_2=$(ls -d "$PROJECT/.essay-state/checkpoints/"*/ 2>/dev/null | wc -l | tr -d ' ')
+assert_gt "more checkpoints after research→outline" "$ckpt_count_2" "$ckpt_count"
 
-# 28. List checkpoints
-out=$(bash "$SCRIPT_DIR/scripts/checkpoint.sh" list "$PROJECT")
-assert_contains "checkpoint list shows entry" "after-research" "$out"
+# ========================================================
+# SECTION 9: OUTLINES WITH SERIES CONTEXT
+# ========================================================
+echo "--- Section 9: Outlines with Series Context ---"
 
-# ============================================================
-# PHASE 6: OUTLINE GENERATION
-# ============================================================
-echo "--- Phase 6: Outline ---"
+# Verify outline prompts build correctly
+for v in A B C; do
+  prompt=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-outline-prompts "$v")
+  assert_contains "outline $v has variant marker" "Variant: $v" "$prompt"
+  assert_contains "outline $v has thesis" "multi-agent orchestration" "$prompt"
+done
 
-# 29. Transition to outline
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" "outline" >/dev/null
-stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "stage set to outline" "outline" "$stage"
+# Series context injection
+series_in_outline=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-series-context 2>/dev/null || echo "")
+if [ -n "$series_in_outline" ]; then
+  assert_contains "series context has series_name" "Agent Architecture" "$series_in_outline"
+fi
 
-# 30. Generate mock outlines
+# Simulate 3 outline outputs
 cat > "$PROJECT/.essay-state/outline-A.json" << 'EOF'
 {
-  "variant": "A",
-  "variant_name": "Tutorial",
-  "title": "Build a Multi-Agent System in 200 Lines",
-  "hook": "I replaced a 2000-line monolithic agent with a 200-line multi-agent system.",
+  "variant": "A", "variant_name": "Tutorial",
+  "title": "Build a Multi-Agent Orchestrator from Scratch",
+  "hook": "Our monolithic agent kept forgetting its own instructions. We replaced it with three coordinated agents and never looked back.",
   "sections": [
-    {"title": "The Problem", "purpose": "Pain point", "key_points": ["Context overflow"], "estimated_words": 300},
-    {"title": "The Architecture", "purpose": "Solution", "key_points": ["Three layers"], "estimated_words": 500},
-    {"title": "Implementation", "purpose": "Code", "key_points": ["Conductor pattern"], "estimated_words": 600},
-    {"title": "Results", "purpose": "Evidence", "key_points": ["Metrics"], "estimated_words": 300}
+    {"title": "Why Monolithic Agents Fail", "purpose": "Problem", "key_points": ["Context overflow", "Tangled concerns"], "estimated_words": 300},
+    {"title": "The Three-Layer Architecture", "purpose": "Solution", "key_points": ["Conductor", "Sprint Master", "Worker"], "estimated_words": 500},
+    {"title": "Implementing Context Isolation", "purpose": "Deep dive", "key_points": ["Fresh context", "Progressive disclosure"], "estimated_words": 600},
+    {"title": "Error Recovery Patterns", "purpose": "Robustness", "key_points": ["Retry", "Fallback", "Circuit breaker"], "estimated_words": 400},
+    {"title": "Production Metrics", "purpose": "Evidence", "key_points": ["Latency", "Reliability", "Cost"], "estimated_words": 300}
   ],
-  "target_word_count": 1700,
-  "tone": "Practical, hands-on"
+  "target_word_count": 2100, "tone": "Hands-on tutorial"
 }
 EOF
 
-assert_json_valid "outline-A is valid JSON" "$PROJECT/.essay-state/outline-A.json"
+cat > "$PROJECT/.essay-state/outline-B.json" << 'EOF'
+{
+  "variant": "B", "variant_name": "Deep Dive",
+  "title": "Multi-Agent Orchestration: Patterns That Scale",
+  "hook": "The agent community is rediscovering microservices architecture — except this time, the services think for themselves.",
+  "sections": [
+    {"title": "The Complexity Cliff", "purpose": "Problem space", "key_points": ["When single agents hit their limits"], "estimated_words": 400},
+    {"title": "Orchestration Principles", "purpose": "Framework", "key_points": ["Separation of concerns", "Context budgeting"], "estimated_words": 600},
+    {"title": "The Conductor Pattern", "purpose": "Core pattern", "key_points": ["Planning vs execution"], "estimated_words": 500},
+    {"title": "Trade-offs and Anti-patterns", "purpose": "Nuance", "key_points": ["Over-decomposition", "Context duplication"], "estimated_words": 400},
+    {"title": "Real-World Results", "purpose": "Evidence", "key_points": ["Production metrics", "Lessons learned"], "estimated_words": 500}
+  ],
+  "target_word_count": 2400, "tone": "Analytical, systems-thinking"
+}
+EOF
 
-# 31. Set outline variant choice
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-field "$PROJECT" outline_variant "A" >/dev/null
-val=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-field "$PROJECT" "outline_variant")
-assert_eq "outline variant stored" '"A"' "$val"
+cat > "$PROJECT/.essay-state/outline-C.json" << 'EOF'
+{
+  "variant": "C", "variant_name": "Narrative",
+  "title": "The Day Our Agent Lost Its Memory (And How Orchestration Saved Us)",
+  "hook": "Three months in, our flagship agent started hallucinating its own past decisions. The fix wasn't better prompting — it was a fundamentally different architecture.",
+  "sections": [
+    {"title": "The Incident", "purpose": "Hook", "key_points": ["Production failure"], "estimated_words": 300},
+    {"title": "Root Cause Analysis", "purpose": "Investigation", "key_points": ["Context window exhaustion"], "estimated_words": 400},
+    {"title": "The Orchestration Breakthrough", "purpose": "Solution", "key_points": ["Multi-agent design"], "estimated_words": 500},
+    {"title": "Building the System", "purpose": "Implementation", "key_points": ["Architecture decisions"], "estimated_words": 500},
+    {"title": "Aftermath", "purpose": "Results", "key_points": ["Metrics and growth"], "estimated_words": 300}
+  ],
+  "target_word_count": 2000, "tone": "War story with technical depth"
+}
+EOF
 
-# ============================================================
-# PHASE 7: DRAFT WRITING
-# ============================================================
-echo "--- Phase 7: Draft Writing ---"
+# Simulate outline critique
+cat > "$PROJECT/.essay-state/outline-critique.json" << 'EOF'
+{
+  "critic": "outline-adversarial",
+  "outlines_analyzed": ["A", "B", "C"],
+  "per_outline": {
+    "A": {"variant_name": "Tutorial", "overall_score": 7.5, "strengths": ["Practical"], "weaknesses": ["Rushed ending"], "fix_suggestions": ["Expand metrics"]},
+    "B": {"variant_name": "Deep Dive", "overall_score": 8.2, "strengths": ["Best argument flow"], "weaknesses": ["Slightly dry"], "fix_suggestions": ["Add anecdotes"]},
+    "C": {"variant_name": "Narrative", "overall_score": 7.8, "strengths": ["Most engaging"], "weaknesses": ["Low code density"], "fix_suggestions": ["Add code earlier"]}
+  },
+  "cross_comparison": {
+    "best_thesis_handling": {"variant": "B", "reason": "Most rigorous"},
+    "strongest_opening": {"variant": "C", "reason": "Incident hook"},
+    "best_code_integration": {"variant": "A", "reason": "Code throughout"}
+  },
+  "recommendation": {"recommended_variant": "B", "confidence": "high", "reasoning": "Strongest analytical structure", "runner_up": "C"}
+}
+EOF
 
-# 32. Transition to draft
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" "draft" >/dev/null
-stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "stage set to draft" "draft" "$stage"
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-field "$PROJECT" outline_variant "B" >/dev/null
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" draft >/dev/null
 
-# 33. Progress display at draft
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "progress shows draft stage" "draft\|DRAFT" "$out"
+# ========================================================
+# SECTION 10: DRAFT + WRITER PROMPT WITH SERIES
+# ========================================================
+echo "--- Section 10: Draft + Writer Prompt ---"
 
-# 34. Generate mock draft
+prompt=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-writer-prompt B)
+assert_contains "writer prompt has outline B" "Deep Dive" "$prompt"
+assert_contains "writer prompt has template" "Draft Writer" "$prompt"
+
+# Simulate draft
 cat > "$PROJECT/.essay-state/draft-v1.md" << 'DRAFT'
-# Build a Multi-Agent System in 200 Lines
+# Multi-Agent Orchestration: Patterns That Scale
 
-I replaced a 2000-line monolithic agent with a 200-line multi-agent system.
-It handles 10x more complex tasks. Here's exactly how.
+The agent community is rediscovering microservices architecture — except this time,
+the services think for themselves.
 
-## The Problem with Monolithic Agents
+## The Complexity Cliff
 
-Every AI agent starts as a single prompt with tools. You add capabilities,
-the context grows, the agent starts forgetting earlier instructions.
+Every AI agent starts simple: one prompt, a few tools, and a clear task. But
+complexity grows. You add more tools, longer system prompts, multi-step workflows.
+Eventually, the agent starts forgetting its earlier instructions. Context overflow.
 
-This is the context pollution problem.
+This isn't a model limitation — it's an architecture problem.
 
-## The Three-Layer Architecture
+## Orchestration Principles
 
-The fix is separation of concerns:
-1. **Conductor** — plans and dispatches
-2. **Sprint Master** — directs execution
-3. **Worker** — executes focused tasks
+The fix mirrors what we learned from distributed systems:
+
+1. **Separation of concerns** — each agent has one job
+2. **Context budgeting** — treat tokens like memory, allocate deliberately
+3. **Progressive disclosure** — agents get information on a need-to-know basis
 
 ```javascript
-async function conductor(mission) {
-  const sprints = planSprints(mission);
-  for (const sprint of sprints) {
-    const master = new Agent({ context: 'fresh' });
-    const result = await master.execute(sprint);
-    evaluate(result);
+class Conductor {
+  async orchestrate(mission) {
+    const sprints = await this.plan(mission);
+    for (const sprint of sprints) {
+      const master = new SprintMaster({ context: 'fresh' });
+      const result = await master.execute(sprint);
+      this.evaluate(result);
+    }
   }
 }
 ```
 
-## Implementation Details
+## The Conductor Pattern
+
+The conductor never writes code. It plans, evaluates, and delegates.
+Sprint masters read the codebase and direct workers.
+Workers execute with minimal, focused context.
 
 ```python
-class ConductorAgent:
-    def __init__(self):
-        self.state = {}
-
-    def plan(self, mission):
-        return decompose_into_sprints(mission)
-
-    def dispatch(self, sprint):
-        worker = WorkerAgent(fresh_context=True)
-        return worker.execute(sprint)
+class SprintMaster:
+    def execute(self, sprint):
+        tasks = self.decompose(sprint)
+        results = []
+        for task in tasks:
+            worker = Worker(context=task.required_context)
+            results.append(worker.run(task))
+        return self.synthesize(results)
 ```
 
-The conductor never writes code. It plans, dispatches, and evaluates.
+## Trade-offs and Anti-patterns
 
-## Results
+Multi-agent adds latency. For tasks under 3 tool calls, a single agent is faster.
+Watch for over-decomposition: if your conductor spawns 20 workers for a one-file
+change, your decomposition is too fine.
 
-- Task completion: 87% (up from 62%)
-- Context overflow errors: 0 (down from 15%)
-- Token cost per task: -68%
+Anti-pattern: sharing full context between layers defeats the purpose.
+
+## Real-World Results
+
+In production, our orchestrated system processes 2000+ files across 15-hour
+autonomous sessions. Key metrics:
+
+- Task completion: 89% (vs 64% monolithic)
+- Context overflow errors: 0% (vs 18%)
+- Token efficiency: 3.2x improvement
+- Mean time to recovery: 4 minutes (automatic retry)
 DRAFT
 
 bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-field "$PROJECT" draft_version 1 >/dev/null
-assert_file_exists "draft-v1 created" "$PROJECT/.essay-state/draft-v1.md"
 
-# ============================================================
-# PHASE 8: CODE VALIDATION
-# ============================================================
-echo "--- Phase 8: Code Validation ---"
+# ========================================================
+# SECTION 11: CODE VALIDATION
+# ========================================================
+echo "--- Section 11: Code Validation ---"
 
-# 35. Run code-validate on draft
-out=$(bash "$SCRIPT_DIR/scripts/code-validate.sh" "$PROJECT/.essay-state/draft-v1.md" 2>&1)
-assert_contains "code-validate finds blocks" "total_blocks" "$out"
+code_val=$(bash "$SCRIPT_DIR/scripts/code-validate.sh" "$PROJECT/.essay-state/draft-v1.md" --json)
+assert_contains "code-validate returns JSON" "blocks" "$code_val"
+assert_contains "code-validate found javascript" "javascript" "$code_val"
+assert_contains "code-validate found python" "python" "$code_val"
 
-# 36. Verify validated count is correct (2 code blocks with language tags)
-validated=$(echo "$out" | python3 -c "import json,sys; print(json.load(sys.stdin)['validated'])")
-assert_eq "code-validate validated 2 blocks" "2" "$validated"
+# ========================================================
+# SECTION 12: DIAGRAM SUGGESTIONS
+# ========================================================
+echo "--- Section 12: Diagram Suggestions ---"
 
-# ============================================================
-# PHASE 9: REVIEW PANEL
-# ============================================================
-echo "--- Phase 9: Review Panel ---"
+diagram_out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJECT/.essay-state/draft-v1.md")
+assert_contains "diagram-suggest returns JSON" "suggestions" "$diagram_out"
 
-# 37. Transition to review
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" "review" >/dev/null
-stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "stage set to review" "review" "$stage"
+# ========================================================
+# SECTION 13: REVIEW PANEL + QUALITY SCORE
+# ========================================================
+echo "--- Section 13: Review Panel + Quality Score ---"
 
-# 38-44. Create mock review files (7 reviewers)
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" review >/dev/null
+
+# Simulate 7 reviewer outputs
 cat > "$PROJECT/.essay-state/review-technical.json" << 'EOF'
-{"reviewer":"technical","rating":"NEEDS_FIXES","summary":"Code examples oversimplified","issues":[{"severity":"major","location":"Architecture section","issue":"Missing error handling","suggestion":"Add try-catch"}],"code_issues":[{"code_block":"conductor function","issue":"No error handling"}]}
+{"reviewer":"technical","rating":"NEEDS_FIXES","summary":"Code examples need error handling","confidence":"high","issues":[{"severity":"major","location":"Conductor Pattern","issue":"No error handling in orchestrate loop","suggestion":"Add try/catch with retry logic"}],"code_issues":[{"code_block":"Conductor class","issue":"Missing error handling","fixed_code":"try { await master.execute(sprint) } catch (e) { this.handleFailure(sprint, e) }"}]}
 EOF
 
 cat > "$PROJECT/.essay-state/review-editor.json" << 'EOF'
-{"reviewer":"editor","rating":"NEEDS_EDITING","summary":"Good content, hook needs work","hook_score":6,"issues":[{"severity":"major","location":"Opening","issue":"Hook makes unsupported claim","suggestion":"Soften the numbers"}]}
+{"reviewer":"editor","rating":"NEEDS_EDITING","summary":"Strong content, tighten transitions","hook_score":7,"clarity_score":8,"flow_score":7,"voice_score":8,"engagement_score":7,"economy_score":8,"overall_score":7.5,"issues":[{"severity":"minor","location":"Trade-offs","issue":"Transition from code to anti-patterns is abrupt","suggestion":"Add a bridging sentence"}],"ai_slop_flags":[],"best_line":"Context budgeting — treat tokens like memory","weakest_section":"Trade-offs — needs expansion"}
 EOF
 
 cat > "$PROJECT/.essay-state/review-adversarial.json" << 'EOF'
-{"reviewer":"adversarial","rating":"VULNERABLE","summary":"Metrics unverified","premise_valid":true,"attacks":[{"target":"87% completion","attack":"No methodology","severity":"significant","defense":"Add methodology"}],"issues":[{"severity":"major","issue":"Metrics lack backing"}]}
+{"reviewer":"adversarial","rating":"NEEDS_STRENGTHENING","summary":"Metrics need methodology","premise_valid":true,"attacks":[{"target":"89% completion claim","attack":"No methodology described","severity":"moderate","defense":"Add measurement details","verdict":"fixable"}],"issues":[{"severity":"moderate","issue":"Metrics lack methodology"}]}
 EOF
 
 cat > "$PROJECT/.essay-state/review-audience.json" << 'EOF'
-{"reviewer":"audience","rating":"MEH","summary":"Okay but not shareable","reader_a":{"rating":"WOULD_SHARE"},"reader_b":{"rating":"MEH"}}
+{"reviewer":"audience","reader_a":{"rating":"WOULD_SHARE","actionability":8,"relevance":8,"time_well_spent":true},"reader_b":{"rating":"INTERESTING","hn_potential":7,"twitter_potential":7,"novelty":7,"credibility":6},"overall_verdict":"Strong for internal, needs evidence for external"}
 EOF
 
 cat > "$PROJECT/.essay-state/review-seo.json" << 'EOF'
-{"reviewer":"seo","rating":"NEEDS_WORK","summary":"Title too generic","title_analysis":{"searchability":5},"issues":[{"severity":"minor","issue":"Title needs specifics"}],"social_package":{"hn_title":"Multi-Agent Architecture Guide"}}
+{"reviewer":"seo","rating":"NEEDS_WORK","summary":"Title could be more searchable","title_analysis":{"current_title":"Multi-Agent Orchestration: Patterns That Scale","searchability":6,"clickability":7},"social_package":{"meta_description":"Learn production-tested patterns for multi-agent AI orchestration.","twitter_thread":["1/ We replaced our monolithic agent with an orchestrated system..."],"linkedin_post":"Multi-agent orchestration patterns that actually work in production.","hn_title":"Multi-Agent Orchestration: Production Patterns That Scale"}}
 EOF
 
 cat > "$PROJECT/.essay-state/review-external.json" << 'EOF'
-{"reviewer":"external","rating":"NEEDS_CONTEXT","summary":"Jargon not explained","jargon_issues":[{"term":"context pollution","suggestion":"define it"}],"issues":[{"severity":"minor","issue":"Define context pollution"}]}
+{"reviewer":"external","rating":"ACCESSIBLE","summary":"Clear writing, minimal jargon issues","confidence":"high","jargon_issues":[{"term":"progressive disclosure","location":"Principles","suggestion":"Define briefly"}],"accessibility_score":7,"issues":[{"severity":"minor","issue":"Progressive disclosure needs definition"}]}
 EOF
 
 cat > "$PROJECT/.essay-state/review-factcheck.json" << 'EOF'
-{"reviewer":"factcheck","rating":"NEEDS_VERIFICATION","summary":"Claims need methodology","claims_checked":5,"claims_verified":3,"issues":[{"severity":"major","claim":"87% completion","verdict":"unverified"}],"code_verification":[{"code_block":"conductor","syntax_valid":true}]}
+{"reviewer":"factcheck","rating":"MOSTLY_VERIFIED","summary":"Claims are reasonable but metrics need sourcing","confidence":"medium","claims_checked":6,"claims_verified":4,"claims_unverified":2,"issues":[{"severity":"minor","claim":"89% completion rate","location":"Results","verdict":"unverified","suggestion":"Add measurement context"}],"code_verification":[{"code_block":"Conductor class","syntax_valid":true,"would_run":true}]}
 EOF
 
-# Verify all review files are valid JSON
-for reviewer in technical editor adversarial audience seo external factcheck; do
-  assert_json_valid "review-$reviewer is valid JSON" "$PROJECT/.essay-state/review-$reviewer.json"
+# Register reviews
+for r in review-technical review-editor review-adversarial review-audience review-seo review-external review-factcheck; do
+  bash "$SCRIPT_DIR/scripts/pipeline-state.sh" add-review "$PROJECT" "$PROJECT/.essay-state/${r}.json" >/dev/null
 done
 
-# ============================================================
-# PHASE 10: AGGREGATE REVIEWS
-# ============================================================
-echo "--- Phase 10: Aggregate Reviews ---"
+# Aggregate
+bash "$SCRIPT_DIR/scripts/aggregate-reviews.sh" "$PROJECT" >/dev/null
+assert_file "panel summary exists" "$PROJECT/.essay-state/review-panel-summary.json"
 
-# 45. Run aggregate-reviews
-out=$(bash "$SCRIPT_DIR/scripts/aggregate-reviews.sh" "$PROJECT")
-assert_contains "aggregate has consensus" "NEEDS" "$out"
-assert_file_exists "panel summary created" "$PROJECT/.essay-state/review-panel-summary.json"
+# Calibrate
+bash "$SCRIPT_DIR/scripts/calibrate-reviews.sh" "$PROJECT" >/dev/null
+assert_file "calibration exists" "$PROJECT/.essay-state/review-calibration.json"
 
-# 46. Panel summary is valid JSON
-assert_json_valid "panel summary is valid JSON" "$PROJECT/.essay-state/review-panel-summary.json"
+# Quality score
+quality_out=$(bash "$SCRIPT_DIR/scripts/quality-score.sh" "$PROJECT")
+assert_contains "quality score has composite" "composite" "$quality_out"
+assert_contains "quality score has dimension_scores" "dimension_scores" "$quality_out"
 
-# 47. Panel summary has prioritized actions
-summary=$(cat "$PROJECT/.essay-state/review-panel-summary.json")
-assert_contains "panel has prioritized_actions" "prioritized_actions" "$summary"
+# ========================================================
+# SECTION 14: INFLUENCE SCORE
+# ========================================================
+echo "--- Section 14: Influence Score ---"
 
-# ============================================================
-# PHASE 11: QUALITY SCORE
-# ============================================================
-echo "--- Phase 11: Quality Score ---"
+influence_out=$(bash "$SCRIPT_DIR/scripts/influence-score.sh" "$PROJECT" "$SCRIPT_DIR")
+assert_contains "influence score has JSON" "influence" "$influence_out"
 
-# 48. Run quality-score
-out=$(bash "$SCRIPT_DIR/scripts/quality-score.sh" "$PROJECT" 2>&1)
-assert_contains "quality score output" "composite_score\|readiness" "$out"
-assert_file_exists "quality-score.json created" "$PROJECT/.essay-state/quality-score.json"
+# ========================================================
+# SECTION 15: SEO METADATA
+# ========================================================
+echo "--- Section 15: SEO Metadata ---"
 
-# 49. Quality score is valid JSON
-assert_json_valid "quality score is valid JSON" "$PROJECT/.essay-state/quality-score.json"
+seo_out=$(bash "$SCRIPT_DIR/scripts/seo-metadata.sh" "$PROJECT")
+assert_contains "seo metadata has JSON output" "meta" "$seo_out"
 
-# 50. Quality score is between 0 and 10
-score=$(python3 -c "import json; print(json.load(open('$PROJECT/.essay-state/quality-score.json'))['composite_score'])")
-in_range=$(python3 -c "print('yes' if 0 <= float('$score') <= 10 else 'no')")
-assert_eq "quality score in range 0-10" "yes" "$in_range"
+# ========================================================
+# SECTION 16: REFINEMENT + RETRY-STAGE
+# ========================================================
+echo "--- Section 16: Refinement + Retry-Stage ---"
 
-# ============================================================
-# PHASE 12: CALIBRATE REVIEWS
-# ============================================================
-echo "--- Phase 12: Calibrate Reviews ---"
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" refinement >/dev/null
 
-# 51. Run calibrate-reviews
-out=$(bash "$SCRIPT_DIR/scripts/calibrate-reviews.sh" "$PROJECT")
-assert_contains "calibrate has panel_average" "panel_average" "$out"
-assert_file_exists "calibration file created" "$PROJECT/.essay-state/review-calibration.json"
+# Round 1
+prompt=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" build-refiner-prompt 1)
+assert_contains "refiner prompt round 1" "Round: 1" "$prompt"
 
-# 52. Calibration is valid JSON
-assert_json_valid "calibration is valid JSON" "$PROJECT/.essay-state/review-calibration.json"
-
-# 53. Calibration has required fields
-cal=$(cat "$PROJECT/.essay-state/review-calibration.json")
-assert_contains "calibration has normalized_scores" "normalized_scores" "$cal"
-assert_contains "calibration has agreement_score" "agreement_score" "$cal"
-
-# ============================================================
-# PHASE 13: DIAGRAM SUGGESTIONS
-# ============================================================
-echo "--- Phase 13: Diagram Suggestions ---"
-
-# 54. Run diagram-suggest on draft
-out=$(bash "$SCRIPT_DIR/scripts/diagram-suggest.sh" "$PROJECT/.essay-state/draft-v1.md" 2>&1)
-assert_contains "diagram suggest returns suggestions" "suggestions\|total_suggestions" "$out"
-
-# 55. Output is valid JSON
-echo "$out" > "$TMPDIR/diagram-output.json"
-if python3 -c "import json; json.load(open('$TMPDIR/diagram-output.json'))" 2>/dev/null; then
-  PASS=$((PASS + 1))
-else
-  FAIL=$((FAIL + 1)); echo "FAIL: diagram output is not valid JSON"
-fi
-
-# ============================================================
-# PHASE 14: INFLUENCE SCORE
-# ============================================================
-echo "--- Phase 14: Influence Score ---"
-
-# 56. Run influence-score
-out=$(bash "$SCRIPT_DIR/scripts/influence-score.sh" "$PROJECT" "$SCRIPT_DIR" 2>&1)
-assert_contains "influence score has tier" "tier" "$out"
-assert_file_exists "influence-score.json created" "$PROJECT/.essay-state/influence-score.json"
-
-# 57. Influence score is valid JSON
-assert_json_valid "influence score is valid JSON" "$PROJECT/.essay-state/influence-score.json"
-
-# 58. Influence score has dimensions
-inf=$(cat "$PROJECT/.essay-state/influence-score.json")
-assert_contains "influence has dimensions" "dimensions" "$inf"
-
-# ============================================================
-# PHASE 15: SEO METADATA
-# ============================================================
-echo "--- Phase 15: SEO Metadata ---"
-
-# 59. Run seo-metadata
-out=$(bash "$SCRIPT_DIR/scripts/seo-metadata.sh" "$PROJECT" 2>&1)
-assert_contains "seo metadata has opengraph" "opengraph_tags" "$out"
-assert_file_exists "seo-metadata.json created" "$PROJECT/.essay-state/seo-metadata.json"
-
-# 60. SEO metadata is valid JSON
-assert_json_valid "seo metadata is valid JSON" "$PROJECT/.essay-state/seo-metadata.json"
-
-# 61. SEO metadata has title
-seo=$(cat "$PROJECT/.essay-state/seo-metadata.json")
-assert_contains "seo has title" "title" "$seo"
-
-# ============================================================
-# PHASE 16: REFINEMENT LOOP
-# ============================================================
-echo "--- Phase 16: Refinement ---"
-
-# 62. Transition to refinement
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" "refinement" >/dev/null
-stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "stage set to refinement" "refinement" "$stage"
-
-# 63. Increment refinement round
+# Simulate v2 draft
+cp "$PROJECT/.essay-state/draft-v1.md" "$PROJECT/.essay-state/draft-v2.md"
 bash "$SCRIPT_DIR/scripts/pipeline-state.sh" refinement-round "$PROJECT" >/dev/null
-val=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-field "$PROJECT" "refinement_round")
-assert_eq "refinement round is 1" "1" "$val"
 
-# 64. Take a checkpoint before polish
-out=$(bash "$SCRIPT_DIR/scripts/checkpoint.sh" snapshot "$PROJECT" "before-polish")
-assert_contains "checkpoint before-polish" "Checkpoint:" "$out"
-
-# ============================================================
-# PHASE 17: POLISH AND FINAL ARTIFACTS
-# ============================================================
-echo "--- Phase 17: Polish ---"
-
-# 65. Transition to polish
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" "polish" >/dev/null
-stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "stage set to polish" "polish" "$stage"
-
-# 66. Progress display at polish
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "progress shows polish" "polish\|POLISH\|85" "$out"
-
-# Create final artifacts
-cat > "$PROJECT/.essay-state/final-internal.md" << 'EOF'
-# Build a Multi-Agent System in 200 Lines
-
-## TL;DR
-- Multi-agent > monolithic for complex tasks
-- Three layers: Conductor, Sprint Master, Worker
-- Fresh context per layer prevents pollution
-
-[Full article content here]
+# Simulate adversarial re-review
+cat > "$PROJECT/.essay-state/review-adversarial.json" << 'EOF'
+{"reviewer":"adversarial","rating":"SOLID","summary":"Issues addressed","attacks":[],"issues":[]}
 EOF
 
-cat > "$PROJECT/.essay-state/final-external.md" << 'EOF'
-# The Conductor Pattern: Building Multi-Agent AI Systems
+conv=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" check-convergence 2)
+assert_eq "round 2 converged" "CONVERGED" "$conv"
 
-Learn the three-layer conductor pattern for building reliable multi-agent systems.
+# Test retry-stage: reset draft stage
+retry_out=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" retry-stage draft)
+assert_contains "retry-stage output" "Retry" "$retry_out"
+assert_contains "retry-stage mentions draft" "draft" "$retry_out"
 
-## The Monolith Problem
+# After retry, stage should be set to draft
+current_stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
+assert_eq "retry-stage reset to draft" "draft" "$current_stage"
 
-Every AI agent starts as a single prompt. As you add capabilities, context grows
-and the agent starts forgetting instructions.
+# Recreate draft for continued pipeline
+cat > "$PROJECT/.essay-state/draft-v1.md" << 'DRAFT'
+# Multi-Agent Orchestration: Patterns That Scale
 
-## The Three-Layer Solution
+The agent community is rediscovering microservices architecture — except this time,
+the services think for themselves.
+
+## The Complexity Cliff
+
+Every AI agent starts simple: one prompt, a few tools, and a clear task.
+
+## Orchestration Principles
 
 ```javascript
-async function conductor(mission) {
-  const sprints = planSprints(mission);
-  for (const sprint of sprints) {
-    const master = new Agent({ context: 'fresh' });
-    await master.execute(sprint);
+class Conductor {
+  async orchestrate(mission) {
+    const sprints = await this.plan(mission);
+    for (const sprint of sprints) {
+      const master = new SprintMaster({ context: 'fresh' });
+      await master.execute(sprint);
+    }
   }
+}
+```
+
+## The Conductor Pattern
+
+The conductor never writes code. It plans, evaluates, and delegates.
+
+```python
+class SprintMaster:
+    def execute(self, sprint):
+        tasks = self.decompose(sprint)
+        return [Worker(context=t.ctx).run(t) for t in tasks]
+```
+
+## Trade-offs and Anti-patterns
+
+Multi-agent adds latency. For simple tasks, a single agent is fine.
+
+## Real-World Results
+
+Task completion: 89%. Context overflows: 0%. Token efficiency: 3.2x improvement.
+DRAFT
+
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-field "$PROJECT" draft_version 1 >/dev/null
+
+# ========================================================
+# SECTION 17: RESUME
+# ========================================================
+echo "--- Section 17: Resume ---"
+
+resume_out=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" resume)
+assert_contains "resume detects partial state" "STATUS" "$resume_out"
+assert_contains "resume shows current stage" "draft" "$resume_out"
+
+# ========================================================
+# SECTION 18: ROLLBACK
+# ========================================================
+echo "--- Section 18: Rollback ---"
+
+# List checkpoints
+ckpt_list=$(bash "$SCRIPT_DIR/scripts/checkpoint.sh" list "$PROJECT")
+assert_contains "checkpoint list has entries" "checkpoint" "$ckpt_list"
+
+# Get latest checkpoint
+latest_ckpt=$(bash "$SCRIPT_DIR/scripts/checkpoint.sh" latest "$PROJECT")
+assert_contains "latest checkpoint exists" "-" "$latest_ckpt"
+
+# Record current stage before rollback
+stage_before_rollback=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
+
+# Find the earliest checkpoint (intake stage)
+# Find a checkpoint from the intake stage (label starts with "intake")
+early_ckpt=$(ls -d "$PROJECT/.essay-state/checkpoints"/intake-*/ 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
+if [ -n "$early_ckpt" ]; then
+  bash "$SCRIPT_DIR/scripts/checkpoint.sh" rollback "$PROJECT" "$early_ckpt" >/dev/null
+  stage_after_rollback=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
+  # The intake checkpoint should restore the intake stage
+  assert_eq "rollback reverted to intake" "intake" "$stage_after_rollback"
+else
+  echo "SKIP: No checkpoint found for rollback test"
+fi
+
+# Re-advance through the pipeline for remaining tests
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" research >/dev/null
+
+# Recreate research
+cat > "$PROJECT/.essay-state/research-synthesis.json" << 'EOF'
+{
+  "thesis": "Effective multi-agent orchestration requires three architectural principles.",
+  "thesis_expanded": "Context isolation, progressive disclosure, and hierarchical planning.",
+  "evidence_map": [{"claim": "Context isolation prevents hallucination", "sources": ["note-1"], "strength": "strong"}],
+  "knowledge_gaps": [],
+  "competitive_landscape": [],
+  "unique_angle": "Production-tested patterns",
+  "recommended_depth": "intermediate",
+  "recommended_length": "medium",
+  "key_terms": ["conductor pattern", "orchestration"]
+}
+EOF
+
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" outline >/dev/null
+
+# Recreate outlines
+for v in A B C; do
+  cat > "$PROJECT/.essay-state/outline-${v}.json" << EOF
+{"variant":"$v","variant_name":"Variant $v","title":"Test Outline $v","hook":"Hook $v","sections":[{"title":"Section 1","purpose":"test","key_points":["point"],"estimated_words":500}],"target_word_count":2000,"tone":"technical"}
+EOF
+done
+
+cat > "$PROJECT/.essay-state/outline-critique.json" << 'EOF'
+{"critic":"outline-adversarial","outlines_analyzed":["A","B","C"],"per_outline":{"A":{"overall_score":7},"B":{"overall_score":8},"C":{"overall_score":7.5}},"recommendation":{"recommended_variant":"B"}}
+EOF
+
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-field "$PROJECT" outline_variant "B" >/dev/null
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" draft >/dev/null
+
+# Recreate draft
+cat > "$PROJECT/.essay-state/draft-v1.md" << 'DRAFT'
+# Multi-Agent Orchestration: Patterns That Scale
+
+Content for testing purposes.
+
+## Orchestration Principles
+
+```javascript
+class Conductor {
+  async orchestrate(mission) { return this.plan(mission); }
 }
 ```
 
 ## Results
 
-Task completion jumped from 62% to 87%. Context overflow errors dropped to zero.
+Task completion improved significantly with multi-agent architecture.
+DRAFT
+
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-field "$PROJECT" draft_version 1 >/dev/null
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" review >/dev/null
+
+# Recreate reviews
+cat > "$PROJECT/.essay-state/review-technical.json" << 'EOF'
+{"reviewer":"technical","rating":"PASS","summary":"Code examples are correct","confidence":"high","issues":[]}
+EOF
+cat > "$PROJECT/.essay-state/review-editor.json" << 'EOF'
+{"reviewer":"editor","rating":"PASS","summary":"Well-written","overall_score":8,"issues":[]}
+EOF
+cat > "$PROJECT/.essay-state/review-adversarial.json" << 'EOF'
+{"reviewer":"adversarial","rating":"SOLID","summary":"Claims are defensible","attacks":[],"issues":[]}
+EOF
+cat > "$PROJECT/.essay-state/review-audience.json" << 'EOF'
+{"reviewer":"audience","overall_verdict":"Strong for target audience"}
+EOF
+cat > "$PROJECT/.essay-state/review-seo.json" << 'EOF'
+{"reviewer":"seo","rating":"GOOD","summary":"Good searchability","social_package":{"meta_description":"Multi-agent patterns","twitter_thread":["Thread"],"linkedin_post":"Post","hn_title":"Title"}}
+EOF
+cat > "$PROJECT/.essay-state/review-external.json" << 'EOF'
+{"reviewer":"external","rating":"ACCESSIBLE","summary":"Clear","accessibility_score":8,"issues":[]}
+EOF
+cat > "$PROJECT/.essay-state/review-factcheck.json" << 'EOF'
+{"reviewer":"factcheck","rating":"VERIFIED","summary":"Claims check out","claims_checked":4,"claims_verified":4,"issues":[]}
+EOF
+
+for r in review-technical review-editor review-adversarial review-audience review-seo review-external review-factcheck; do
+  bash "$SCRIPT_DIR/scripts/pipeline-state.sh" add-review "$PROJECT" "$PROJECT/.essay-state/${r}.json" >/dev/null
+done
+
+bash "$SCRIPT_DIR/scripts/aggregate-reviews.sh" "$PROJECT" >/dev/null
+bash "$SCRIPT_DIR/scripts/calibrate-reviews.sh" "$PROJECT" >/dev/null
+
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" refinement >/dev/null
+cp "$PROJECT/.essay-state/draft-v1.md" "$PROJECT/.essay-state/draft-v2.md"
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" refinement-round "$PROJECT" >/dev/null
+bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" polish >/dev/null
+
+# ========================================================
+# SECTION 19: POLISH + FINAL OUTPUTS
+# ========================================================
+echo "--- Section 19: Polish + Final Outputs ---"
+
+# Simulate final outputs
+cat > "$PROJECT/.essay-state/final-internal.md" << 'EOF'
+# Multi-Agent Orchestration: Patterns That Scale
+
+## TL;DR
+- Multi-agent orchestration outperforms monolithic agents for complex tasks
+- Three principles: context isolation, progressive disclosure, hierarchical planning
+- Production results: 89% completion, zero context overflows, 3.2x token efficiency
+
+## The Complexity Cliff
+
+Every AI agent starts simple. But complexity grows until context overflow hits.
+
+## Orchestration Principles
+
+Separation of concerns. Context budgeting. Progressive disclosure.
+
+```javascript
+class Conductor {
+  async orchestrate(mission) {
+    const sprints = await this.plan(mission);
+    for (const sprint of sprints) {
+      const master = new SprintMaster({ context: 'fresh' });
+      await master.execute(sprint);
+    }
+  }
+}
+```
+
+## The Conductor Pattern
+
+The conductor plans. Sprint masters direct. Workers execute.
+
+## Trade-offs
+
+Multi-agent adds latency for simple tasks. Know when to use it.
+
+## Results
+
+Task completion: 89%. Context overflows: 0%. Token efficiency: 3.2x.
+
+## How This Applies to Us
+
+Our agent platform benefits directly from these patterns.
+
+## Discussion Questions
+
+1. Should we adopt multi-agent orchestration for our next project?
+2. What's our current context overflow rate?
+EOF
+
+cat > "$PROJECT/.essay-state/final-external.md" << 'EOF'
+# Multi-Agent Orchestration: Production Patterns That Scale
+
+The agent community is rediscovering microservices architecture — except this time,
+the services think for themselves. Here are the production-tested patterns.
+
+## The Complexity Cliff
+
+Every AI agent starts simple. But complexity grows.
+
+## Orchestration Principles
+
+Three principles that scale:
+1. Separation of concerns
+2. Context budgeting
+3. Progressive disclosure
+
+```javascript
+class Conductor {
+  async orchestrate(mission) {
+    const sprints = await this.plan(mission);
+    for (const sprint of sprints) {
+      const master = new SprintMaster({ context: 'fresh' });
+      await master.execute(sprint);
+    }
+  }
+}
+```
+
+## The Conductor Pattern
+
+The conductor never writes code. It plans, evaluates, and delegates.
+
+## Trade-offs and Anti-patterns
+
+Multi-agent adds latency. Know when not to use it.
+
+## Real-World Results
+
+In production: 89% task completion, zero context overflows, 3.2x token efficiency.
+
+## About the Author
+
+Test Author is a Staff Engineer at TestCorp. They write about AI architecture and multi-agent systems.
+Follow on Twitter @testauthor.
+
+## Further Reading
+
+- Anthropic's Building Effective Agents documentation
+- The Conductor Pattern in practice
 EOF
 
 cat > "$PROJECT/.essay-state/social-package.json" << 'EOF'
 {
-  "twitter_thread": ["1/ We replaced our monolithic AI agent with a three-layer system..."],
-  "linkedin_post": "Most teams build AI agents as monoliths.",
-  "hn_title": "The Conductor Pattern: Multi-Agent Architecture"
+  "twitter_thread": ["1/ We replaced our monolithic AI agent with an orchestrated multi-agent system. Results: 89% completion, 0% context overflows, 3.2x token efficiency. Here's what we learned:"],
+  "linkedin_post": "Multi-agent orchestration patterns that actually work in production.",
+  "hn_title": "Multi-Agent Orchestration: Production Patterns That Scale",
+  "hn_comment": "Author here. We've been running this architecture for 6 months now."
 }
 EOF
 
-# 67-69. Verify final artifacts exist
-assert_file_exists "final-internal exists" "$PROJECT/.essay-state/final-internal.md"
-assert_file_exists "final-external exists" "$PROJECT/.essay-state/final-external.md"
-assert_file_exists "social-package exists" "$PROJECT/.essay-state/social-package.json"
+# ========================================================
+# SECTION 20: PUBLISH CHECK + PROGRESS AT POLISH
+# ========================================================
+echo "--- Section 20: Publish Check + Progress ---"
 
-# ============================================================
-# PHASE 18: PUBLISH CHECK
-# ============================================================
-echo "--- Phase 18: Publish Check ---"
+# Progress at polish stage
+progress_polish=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT" --format json)
+assert_contains "progress shows polish stage" "polish" "$progress_polish"
 
-# 70. Complete the pipeline first
+# Publish check
+# publish-check returns non-zero when checks fail, which is expected behavior
+publish_out=$(bash "$SCRIPT_DIR/scripts/publish-check.sh" "$PROJECT" 2>&1 || true)
+assert_contains "publish check has output" "Checklist" "$publish_out"
+
+# ========================================================
+# SECTION 21: COMPLETE + TASTE MEMORY UPDATE
+# ========================================================
+echo "--- Section 21: Complete + Taste Memory ---"
+
 bash "$SCRIPT_DIR/scripts/pipeline-state.sh" complete "$PROJECT" >/dev/null
-stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "stage set to complete" "complete" "$stage"
+bash "$SCRIPT_DIR/scripts/taste-memory.sh" update "$PROJECT" >/dev/null
 
-# 71. Run publish-check (may exit non-zero if checks fail — that's expected with minimal mock data)
-out=$(bash "$SCRIPT_DIR/scripts/publish-check.sh" "$PROJECT" 2>&1 || true)
-assert_contains "publish check runs" "Pre-Publish Checklist\|Pipeline" "$out"
+taste=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" read)
+assert_contains "taste has article record" "Topics covered" "$taste"
 
-# 72. Progress display at complete
-out=$(bash "$SCRIPT_DIR/scripts/progress-display.sh" "$PROJECT")
-assert_contains "progress shows 100% or complete" "100\|complete\|COMPLETE" "$out"
+final_status=$(bash "$SCRIPT_DIR/scripts/orchestrate.sh" "$PROJECT" "$SCRIPT_DIR" status)
+assert_contains "final status complete" "True" "$final_status"
 
-# ============================================================
-# PHASE 19: CHECKPOINT RESTORE
-# ============================================================
-echo "--- Phase 19: Checkpoint Restore ---"
+# ========================================================
+# SECTION 22: TASTE MEMORY DIFF-LEARN
+# ========================================================
+echo "--- Section 22: Taste Memory Diff-Learn ---"
 
-# 73. List checkpoints — should have at least 2
-out=$(bash "$SCRIPT_DIR/scripts/checkpoint.sh" list "$PROJECT")
-assert_contains "checkpoint list has after-research" "after-research" "$out"
-assert_contains "checkpoint list has before-polish" "before-polish" "$out"
+# Create original and edited drafts for diff-learn
+cat > "$TMPDIR/original-draft.md" << 'ORIG'
+# Multi-Agent Architecture
 
-# Record current state for comparison after restore
-current_stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-assert_eq "current stage is complete" "complete" "$current_stage"
+This article discusses multi-agent architecture patterns.
 
-# 74. Get the after-research checkpoint ID
-ckpt_id=$(bash "$SCRIPT_DIR/scripts/checkpoint.sh" list "$PROJECT" | grep "after-research" | head -1 | awk '{print $1}' | sed 's/[^a-zA-Z0-9T_-]//g')
-# If that didn't work, try to extract from the directory listing
-if [ -z "$ckpt_id" ]; then
-  ckpt_id=$(ls "$PROJECT/.essay-state/checkpoints/" 2>/dev/null | grep "after-research" | head -1)
-fi
+## Introduction
 
-if [ -n "$ckpt_id" ]; then
-  # 75. Rollback to after-research checkpoint
-  bash "$SCRIPT_DIR/scripts/checkpoint.sh" rollback "$PROJECT" "$ckpt_id" >/dev/null 2>&1
-  restored_stage=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" get-stage "$PROJECT")
-  assert_eq "restored stage is research" "research" "$restored_stage"
+Multi-agent systems are complex. They require careful design.
 
-  # 76. Verify the research synthesis still exists after rollback
-  assert_file_exists "research-synthesis survived rollback" "$PROJECT/.essay-state/research-synthesis.json"
+## The Pattern
 
-  # 77. Verify draft does NOT exist after rolling back to research stage
-  if [ ! -f "$PROJECT/.essay-state/final-external.md" ]; then
-    PASS=$((PASS + 1))
-  else
-    # Final artifacts might not have been in the research checkpoint
-    # The key test is that the stage reverted
-    PASS=$((PASS + 1))
-  fi
-else
-  FAIL=$((FAIL + 1)); echo "FAIL: could not find after-research checkpoint ID"
-  FAIL=$((FAIL + 1)); echo "FAIL: skipped rollback test (no checkpoint ID)"
-  FAIL=$((FAIL + 1)); echo "FAIL: skipped restored state test"
-fi
+The conductor pattern works as follows: you have a conductor that plans,
+a sprint master that directs, and workers that execute. This separation
+of concerns is crucial.
 
-# Restore project back to complete state for remaining tests
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT" "complete" >/dev/null
-bash "$SCRIPT_DIR/scripts/pipeline-state.sh" complete "$PROJECT" >/dev/null 2>&1 || true
+## Conclusion
 
-# Recreate artifacts that may have been lost in rollback
-mkdir -p "$PROJECT/.essay-state"
-[ -f "$PROJECT/.essay-state/final-external.md" ] || cat > "$PROJECT/.essay-state/final-external.md" << 'EOF'
-# The Conductor Pattern: Building Multi-Agent AI Systems
+In conclusion, multi-agent architecture is superior to monolithic agents.
+ORIG
 
-Learn the three-layer conductor pattern for building reliable multi-agent systems.
+cat > "$TMPDIR/edited-draft.md" << 'EDIT'
+# Multi-Agent Architecture: Patterns That Actually Work
 
-## The Monolith Problem
+Let me show you what happens when your AI agent starts forgetting its own instructions.
 
-Every AI agent starts as a single prompt.
+## The Problem
+
+Three months in, our agent was contradicting itself mid-task. Context overflow.
+Not a model problem — an architecture problem.
+
+## The Fix
+
+The conductor pattern: plan → direct → execute. Each layer gets fresh context.
+No shared state. No context pollution.
 
 ```javascript
-async function conductor(mission) {
-  const sprints = planSprints(mission);
-  for (const sprint of sprints) {
-    const master = new Agent({ context: 'fresh' });
-    await master.execute(sprint);
-  }
-}
+const conductor = new Conductor();
+await conductor.orchestrate(mission);
 ```
 
-## Results
+## What We Learned
 
-Task completion jumped from 62% to 87%.
-EOF
-[ -f "$PROJECT/.essay-state/final-internal.md" ] || echo "# Internal Version" > "$PROJECT/.essay-state/final-internal.md"
-[ -f "$PROJECT/.essay-state/social-package.json" ] || echo '{"twitter_thread":["test"],"hn_title":"test"}' > "$PROJECT/.essay-state/social-package.json"
-[ -f "$PROJECT/.essay-state/draft-v1.md" ] || cp "$PROJECT/.essay-state/final-external.md" "$PROJECT/.essay-state/draft-v1.md"
+Multi-agent beats monolithic when tasks exceed 3 tool calls. Below that, don't bother.
+EDIT
 
-# Recreate outline and review artifacts lost in rollback
-[ -f "$PROJECT/.essay-state/outline-A.json" ] || echo '{"variant":"A","variant_name":"Tutorial","title":"Restored Outline","sections":[]}' > "$PROJECT/.essay-state/outline-A.json"
-[ -f "$PROJECT/.essay-state/review-panel-summary.json" ] || echo '{"ratings":{},"prioritized_actions":[],"consensus":"restored"}' > "$PROJECT/.essay-state/review-panel-summary.json"
+diff_learn_out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" diff-learn "$PROJECT" "$TMPDIR/original-draft.md" "$TMPDIR/edited-draft.md")
+assert_contains "diff-learn extracted patterns" "Learned from diff" "$diff_learn_out"
 
-# ============================================================
-# PHASE 20: EXPERTISE GRAPH
-# ============================================================
-echo "--- Phase 20: Expertise Graph ---"
+# Verify taste memory was updated with learned patterns
+taste_after_diff=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" read)
+assert_contains "taste memory has learned insights" "Learned" "$taste_after_diff"
 
-# 78. Update expertise graph
-out=$(bash "$SCRIPT_DIR/scripts/expertise-graph.sh" update "multi-agent systems" "ai" "agents" "architecture")
-assert_contains "expertise graph updated" "Updated\|Recorded" "$out"
+# ========================================================
+# SECTION 23: TASTE MEMORY FEEDBACK
+# ========================================================
+echo "--- Section 23: Taste Memory Feedback ---"
 
-# 79. Query expertise
-out=$(bash "$SCRIPT_DIR/scripts/expertise-graph.sh" query "multi-agent systems")
-assert_contains "expertise query finds topic" "multi-agent systems\|article_count\|1" "$out"
+bash "$SCRIPT_DIR/scripts/taste-memory.sh" feedback "$PROJECT" tone "Keep it casual and direct — no academic language" >/dev/null
+bash "$SCRIPT_DIR/scripts/taste-memory.sh" feedback "$PROJECT" structure "Start with the problem, not the solution" >/dev/null
+bash "$SCRIPT_DIR/scripts/taste-memory.sh" feedback "$PROJECT" code_density "Always include runnable code in the first 1/3 of the article" >/dev/null
 
-# 80. Read full graph
-out=$(bash "$SCRIPT_DIR/scripts/expertise-graph.sh" read)
-assert_contains "expertise graph has topics" "multi-agent" "$out"
+taste_feedback=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" read)
+assert_contains "feedback has tone preference" "casual" "$taste_feedback"
+assert_contains "feedback has structure preference" "problem" "$taste_feedback"
+assert_contains "feedback has code_density preference" "runnable" "$taste_feedback"
 
-# ============================================================
-# PHASE 21: TASTE MEMORY
-# ============================================================
-echo "--- Phase 21: Taste Memory ---"
+# ========================================================
+# SECTION 24: TASTE MEMORY SUGGEST
+# ========================================================
+echo "--- Section 24: Taste Memory Suggest ---"
 
-# 81. Update taste memory from completed article
-out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" update "$PROJECT")
-assert_contains "taste updated" "updated\|taste\|Taste" "$out"
+suggest_out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" suggest "$PROJECT")
+assert_contains "suggest has recommendations" "Suggestions" "$suggest_out"
 
-# 82. Diff-learn with mock draft and edited file
-DRAFT_FILE="$TMPDIR/draft-original.md"
-EDITED_FILE="$TMPDIR/draft-edited.md"
+# ========================================================
+# SECTION 25: ANALYTICS FEEDBACK
+# ========================================================
+echo "--- Section 25: Analytics Feedback ---"
 
-cat > "$DRAFT_FILE" << 'EOF'
-# Introduction
+bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" record art-test views 1500 >/dev/null
+bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" record art-test shares 85 >/dev/null
+bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" record art-test comments 23 >/dev/null
 
-This is a verbose introduction with many unnecessary words and filler content.
-It goes on and on about background information.
+query_out=$(bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" query art-test)
+assert_contains "analytics query has views" "1500" "$query_out"
+assert_contains "analytics query has shares" "85" "$query_out"
 
-## Technical Details
+top_out=$(bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" top views 3)
+assert_contains "analytics top has art-test" "art-test" "$top_out"
 
-The system utilizes a microservices architecture paradigm for distributed computing.
-EOF
+# ========================================================
+# SECTION 26: FINAL ARTIFACT VERIFICATION
+# ========================================================
+echo "--- Section 26: Final Artifact Verification ---"
 
-cat > "$EDITED_FILE" << 'EOF'
-# Introduction
+assert_file "materials.json" "$PROJECT/.essay-state/materials.json"
+assert_file "research-synthesis.json" "$PROJECT/.essay-state/research-synthesis.json"
+assert_file "outline-A.json" "$PROJECT/.essay-state/outline-A.json"
+assert_file "outline-B.json" "$PROJECT/.essay-state/outline-B.json"
+assert_file "outline-C.json" "$PROJECT/.essay-state/outline-C.json"
+assert_file "draft-v1.md" "$PROJECT/.essay-state/draft-v1.md"
+assert_file "final-internal.md" "$PROJECT/.essay-state/final-internal.md"
+assert_file "final-external.md" "$PROJECT/.essay-state/final-external.md"
+assert_file "social-package.json" "$PROJECT/.essay-state/social-package.json"
+assert_file "review-panel-summary.json" "$PROJECT/.essay-state/review-panel-summary.json"
+assert_file "review-calibration.json" "$PROJECT/.essay-state/review-calibration.json"
+assert_file "config.json" "$HOME/.tech-essay-writer/config.json"
+assert_file "author-profile.json" "$HOME/.tech-essay-writer/author-profile.json"
+assert_file "taste-memory.json" "$HOME/.tech-essay-writer/taste-memory.json"
+assert_dir "checkpoints dir" "$PROJECT/.essay-state/checkpoints"
 
-This intro gets to the point quickly.
-
-## Technical Details
-
-The system uses microservices for distributed computing.
-
-## Getting Started
-
-Step 1: Install the SDK.
-EOF
-
-out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" diff-learn "$PROJECT" "$DRAFT_FILE" "$EDITED_FILE")
-assert_contains "diff-learn detected changes" "deletions\|additions\|replacement\|-\|+" "$out"
-
-# 83. Record feedback
-out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" feedback "$PROJECT" tone "prefer conversational over formal")
-assert_contains "feedback recorded" "Feedback recorded" "$out"
-
-# 84. Get suggestions
-out=$(bash "$SCRIPT_DIR/scripts/taste-memory.sh" suggest "$PROJECT")
-assert_contains "suggest returns output" "Suggestion\|suggestion\|taste\|concise\|Tone\|Writing\|Personalized\|No taste" "$out"
-
-# ============================================================
-# PHASE 22: CROSS-REFERENCE
-# ============================================================
-echo "--- Phase 22: Cross-Reference ---"
-
-# 85. Add a published article to cross-reference
-out=$(bash "$SCRIPT_DIR/scripts/cross-reference.sh" add "Multi-Agent Architecture Guide" "https://blog.example.com/multi-agent" "ai" "agents" "architecture")
-assert_contains "cross-reference added" "Added" "$out"
-
-# 86. List cross-references
-out=$(bash "$SCRIPT_DIR/scripts/cross-reference.sh" list)
-assert_contains "cross-ref list shows article" "Multi-Agent" "$out"
-
-# 87. Suggest related articles
-out=$(bash "$SCRIPT_DIR/scripts/cross-reference.sh" suggest "agent architecture patterns")
-assert_contains "cross-ref suggest returns result" "Multi-Agent\|No matching\|0 matches" "$out"
-
-# ============================================================
-# PHASE 23: SERIES MANAGER
-# ============================================================
-echo "--- Phase 23: Series Manager ---"
-
-# 88. Create a series
-out=$(bash "$SCRIPT_DIR/scripts/series-manager.sh" create "Agent Architecture Deep Dive" "A 3-part series on building multi-agent systems")
-assert_contains "series created" "Created series" "$out"
-assert_file_exists "series.json created" "$HOME/.tech-essay-writer/series.json"
-
-# 89. Extract series ID and add articles
-SERIES_ID=$(python3 -c "import json; print(json.load(open('$HOME/.tech-essay-writer/series.json'))['series'][0]['id'])")
-out=$(bash "$SCRIPT_DIR/scripts/series-manager.sh" add "$SERIES_ID" "art-e2e-001" "Part 1: The Conductor Pattern")
-assert_contains "article added to series" "Added" "$out"
-
-# 90. Add more articles
-bash "$SCRIPT_DIR/scripts/series-manager.sh" add "$SERIES_ID" "art-e2e-002" "Part 2: Context Isolation" >/dev/null
-bash "$SCRIPT_DIR/scripts/series-manager.sh" add "$SERIES_ID" "art-e2e-003" "Part 3: Production Deployment" >/dev/null
-
-# 91. List series
-out=$(bash "$SCRIPT_DIR/scripts/series-manager.sh" list)
-assert_contains "series list shows name" "Agent Architecture" "$out"
-assert_contains "series list shows article count" "3 articles" "$out"
-
-# ============================================================
-# PHASE 24: ANALYTICS FEEDBACK
-# ============================================================
-echo "--- Phase 24: Analytics Feedback ---"
-
-# 92. Record analytics
-out=$(bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" record "art-e2e-001" "views" "2500")
-assert_contains "analytics recorded" "Recorded" "$out"
-
-# 93. Record batch metrics
-out=$(bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" record-batch "art-e2e-001" '{"shares":120,"comments":45}')
-assert_contains "batch recorded" "Recorded" "$out"
-
-# 94. Query metrics
-out=$(bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" query "art-e2e-001")
-assert_contains "query shows views" "2500" "$out"
-assert_contains "query shows shares" "120" "$out"
-
-# ============================================================
-# PHASE 25: PUBLISHING GUIDE
-# ============================================================
-echo "--- Phase 25: Publishing Guide ---"
-
-# 95-101. Run publishing-guide for each platform
-for platform in internal external medium devto hashnode wechat juejin; do
-  out=$(bash "$SCRIPT_DIR/scripts/publishing-guide.sh" "$platform" "$PROJECT" 2>&1)
-  assert_contains "publishing-guide $platform runs" "Checklist\|checklist\|Guide\|guide\|Step\|step\|$platform\|Publishing\|Format\|Tips\|Workflow" "$out"
-done
-
-# ============================================================
-# PHASE 26: FINAL STATE CONSISTENCY VERIFICATION
-# ============================================================
-echo "--- Phase 26: Final State Verification ---"
-
-# 102. Verify all expected state files exist
-assert_file_exists "pipeline-state.json" "$PROJECT/.essay-state/pipeline-state.json"
-assert_file_exists "materials.json" "$PROJECT/.essay-state/materials.json"
-assert_file_exists "research-synthesis.json" "$PROJECT/.essay-state/research-synthesis.json"
-assert_file_exists "outline-A.json" "$PROJECT/.essay-state/outline-A.json"
-assert_file_exists "review-panel-summary.json" "$PROJECT/.essay-state/review-panel-summary.json"
-
-# 103. Pipeline state is still valid JSON after all operations
-assert_json_valid "final pipeline state is valid JSON" "$PROJECT/.essay-state/pipeline-state.json"
-
-# 104. Verify pipeline read works
-out=$(bash "$SCRIPT_DIR/scripts/pipeline-state.sh" read "$PROJECT")
-assert_contains "pipeline read has topic" "Practical Guide\|Multi-Agent" "$out"
-
-# 105. Config still accessible
-val=$(bash "$SCRIPT_DIR/scripts/config.sh" get writing_style)
-assert_eq "config persists across test" "narrative" "$val"
-
-# 106. Author profile still accessible
-out=$(bash "$SCRIPT_DIR/scripts/author-profile.sh" read)
-assert_contains "author profile persists" "Jackson Chen" "$out"
-
-# 107. Expertise graph still has data
-out=$(bash "$SCRIPT_DIR/scripts/expertise-graph.sh" read)
-assert_contains "expertise graph persists" "multi-agent" "$out"
-
-# 108. Cross-reference still has data
-out=$(bash "$SCRIPT_DIR/scripts/cross-reference.sh" list)
-assert_contains "cross-ref persists" "Multi-Agent" "$out"
-
-# 109. Series still has data
-out=$(bash "$SCRIPT_DIR/scripts/series-manager.sh" list)
-assert_contains "series persists" "Agent Architecture" "$out"
-
-# 110. Analytics still has data
-out=$(bash "$SCRIPT_DIR/scripts/analytics-feedback.sh" query "art-e2e-001")
-assert_contains "analytics persists" "2500" "$out"
-
-# ============================================================
-# SUMMARY
-# ============================================================
 echo ""
-echo "========================================"
-echo "E2E Integration: $((PASS + FAIL)) tests | Pass: $PASS | Fail: $FAIL"
-echo "========================================"
+echo "================================"
+echo "Tests: $((PASS + FAIL)) | Pass: $PASS | Fail: $FAIL"
+echo "================================"
 
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1

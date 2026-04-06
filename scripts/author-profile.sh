@@ -124,6 +124,10 @@ if expertise:
 }
 
 cmd_set() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: set requires <field> <value>" >&2
+    return 1
+  fi
   local field="$1" value="$2"
   local valid_fields="name bio role company"
   if ! echo "$valid_fields" | grep -qw "$field"; then
@@ -152,6 +156,10 @@ print(json.dumps(d))
 }
 
 cmd_set_social() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: set-social requires <platform> <handle>" >&2
+    return 1
+  fi
   local platform="$1" handle="$2"
   local valid_platforms="twitter linkedin github xiaohongshu weibo zhihu"
   if ! echo "$valid_platforms" | grep -qw "$platform"; then
@@ -181,6 +189,10 @@ print(json.dumps(d))
 }
 
 cmd_add_expertise() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add-expertise requires <topic> <level>" >&2
+    return 1
+  fi
   local topic="$1" level="$2"
   local valid_levels="beginner intermediate expert authority"
   if ! echo "$valid_levels" | grep -qw "$level"; then
@@ -227,6 +239,10 @@ print(json.dumps(d))
 }
 
 cmd_remove_expertise() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: remove-expertise requires <topic>" >&2
+    return 1
+  fi
   local topic="$1"
   local profile
   profile=$(read_profile)
@@ -264,6 +280,10 @@ else:
 }
 
 cmd_set_voice() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: set-voice requires <description>" >&2
+    return 1
+  fi
   local description="$1"
   local profile
   profile=$(read_profile)

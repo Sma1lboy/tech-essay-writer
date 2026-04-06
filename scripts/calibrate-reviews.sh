@@ -4,9 +4,19 @@
 # Usage: calibrate-reviews.sh <project_dir>
 set -euo pipefail
 
+if [ -z "${1:-}" ]; then
+  echo "ERROR: project_dir required" >&2
+  echo "Usage: calibrate-reviews.sh <project_dir>" >&2
+  exit 1
+fi
 PROJECT_DIR="$1"
 STATE_DIR="$PROJECT_DIR/.essay-state"
 OUTPUT="$STATE_DIR/review-calibration.json"
+
+if [ ! -d "$STATE_DIR" ]; then
+  echo "ERROR: State directory not found: $STATE_DIR" >&2
+  exit 1
+fi
 
 python3 - "$STATE_DIR" << 'PYEOF'
 import json, os, sys, glob, tempfile

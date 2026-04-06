@@ -35,7 +35,15 @@ read_state() {
   local sf
   sf="$(state_file "$1")"
   if [ -f "$sf" ]; then
-    cat "$sf"
+    local content
+    content=$(cat "$sf")
+    # Validate it's parseable JSON; fall back to empty object if corrupt
+    if python3 -c "import json,sys; json.loads(sys.argv[1])" "$content" 2>/dev/null; then
+      echo "$content"
+    else
+      echo "WARNING: Corrupt state file: $sf — treating as empty" >&2
+      echo '{}'
+    fi
   else
     echo '{}'
   fi
@@ -58,6 +66,10 @@ os.rename(tmp, target)
 }
 
 cmd_init() {
+  if [ $# -lt 1 ] || [ -z "${1:-}" ]; then
+    echo "ERROR: project_dir is required for init" >&2
+    return 1
+  fi
   local project="$1"
   shift
   # Parse args: topic and optional --series <series_id>
@@ -118,6 +130,10 @@ print(json.dumps(d))
 }
 
 cmd_set_stage() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: set-stage requires <project_dir> <stage>" >&2
+    return 1
+  fi
   local project="$1" stage="$2"
   local valid_stages="intake research outline draft review refinement polish complete"
   if ! echo "$valid_stages" | grep -qw "$stage"; then
@@ -146,6 +162,10 @@ print(json.dumps(d))
 }
 
 cmd_get_stage() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: get-stage requires <project_dir>" >&2
+    return 1
+  fi
   local project="$1"
   local state
   state=$(read_state "$project")
@@ -158,6 +178,10 @@ cmd_read() {
 }
 
 cmd_set_field() {
+  if [ $# -lt 3 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: set-field requires <project_dir> <key> <value>" >&2
+    return 1
+  fi
   local project="$1" key="$2" val="$3"
   local state
   state=$(read_state "$project")
@@ -181,6 +205,10 @@ print(json.dumps(d))
 }
 
 cmd_get_field() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: get-field requires <project_dir> <key>" >&2
+    return 1
+  fi
   local project="$1" key="$2"
   local state
   state=$(read_state "$project")
@@ -188,6 +216,10 @@ cmd_get_field() {
 }
 
 cmd_add_review() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add-review requires <project_dir> <review_file>" >&2
+    return 1
+  fi
   local project="$1" review_file="$2"
   local state
   state=$(read_state "$project")
@@ -218,6 +250,10 @@ print(json.dumps(d))
 }
 
 cmd_refinement_round() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: refinement-round requires <project_dir>" >&2
+    return 1
+  fi
   local project="$1"
   local state
   state=$(read_state "$project")
@@ -235,6 +271,10 @@ print(json.dumps(d))
 }
 
 cmd_complete() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: complete requires <project_dir>" >&2
+    return 1
+  fi
   local project="$1"
   local state
   state=$(read_state "$project")

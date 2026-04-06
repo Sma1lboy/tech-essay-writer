@@ -47,6 +47,10 @@ os.rename(tmp, target)
 }
 
 cmd_update() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: update requires <topic>" >&2
+    return 1
+  fi
   local topic="$1"
   shift
   local tags="$*"
@@ -114,6 +118,10 @@ print(json.dumps(graph))
 }
 
 cmd_query() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: query requires <topic>" >&2
+    return 1
+  fi
   local topic="$1"
   local graph
   graph=$(read_graph)

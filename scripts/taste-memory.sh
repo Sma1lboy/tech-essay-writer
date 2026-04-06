@@ -104,6 +104,10 @@ if 'explicit_preferences' in d and d['explicit_preferences']:
 }
 
 cmd_update() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: update requires <project_dir>" >&2
+    return 1
+  fi
   local project_dir="$1" taste_file_path="${2:-}"
   local taste
   taste=$(read_taste)
@@ -161,6 +165,10 @@ print(json.dumps(taste))
 }
 
 cmd_record_choice() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: record-choice requires <key> <value>" >&2
+    return 1
+  fi
   local key="$1" value="$2"
   local taste
   taste=$(read_taste)
@@ -194,6 +202,10 @@ print(json.dumps(taste))
 }
 
 cmd_get_preference() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: get-preference requires <key>" >&2
+    return 1
+  fi
   local key="$1"
   local taste
   taste=$(read_taste)
@@ -440,6 +452,10 @@ print('Pattern stored in taste memory.')
 VALID_FEEDBACK_CATEGORIES="tone structure vocabulary length code_density format"
 
 cmd_feedback() {
+  if [ $# -lt 3 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
+    echo "ERROR: feedback requires <project_dir> <category> <text>" >&2
+    return 1
+  fi
   local project_dir="$1" category="$2" text="$3"
 
   # Validate category
@@ -490,6 +506,10 @@ print(json.dumps(taste))
 }
 
 cmd_suggest() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: suggest requires <project_dir>" >&2
+    return 1
+  fi
   local project_dir="$1"
   local taste
   taste=$(read_taste)

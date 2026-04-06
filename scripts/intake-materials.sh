@@ -34,7 +34,7 @@ ensure_materials() {
   mkdir -p "$project/$STATE_DIR"
   if [ ! -f "$mf" ]; then
     python3 -c "
-import json
+import json, sys
 d = {
     'sources': [],
     'themes': [],
@@ -42,16 +42,29 @@ d = {
     'technical_depth': 'unknown',
     'source_count': 0
 }
-with open('$mf', 'w') as f:
+with open(sys.argv[1], 'w') as f:
     json.dump(d, f, indent=2)
-"
+" "$mf"
   fi
 }
 
 read_materials() {
   local mf
   mf="$(materials_file "$1")"
-  cat "$mf"
+  if [ ! -f "$mf" ]; then
+    echo "ERROR: Materials file not found: $mf" >&2
+    echo '{}'
+    return 1
+  fi
+  local content
+  content=$(cat "$mf")
+  # Validate JSON; fall back if corrupt
+  if python3 -c "import json,sys; json.loads(sys.argv[1])" "$content" 2>/dev/null; then
+    echo "$content"
+  else
+    echo "WARNING: Corrupt materials file: $mf — treating as empty" >&2
+    echo '{"sources":[],"themes":[],"potential_angles":[],"technical_depth":"unknown","source_count":0}'
+  fi
 }
 
 write_materials() {
@@ -81,6 +94,10 @@ cmd_init() {
 }
 
 cmd_add_url() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add-url requires <project_dir> <url> [title]" >&2
+    return 1
+  fi
   local project="$1" url="$2" title="${3:-}"
   ensure_materials "$project"
   local mat
@@ -108,6 +125,10 @@ print(json.dumps(d))
 }
 
 cmd_add_note() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add-note requires <project_dir> <note>" >&2
+    return 1
+  fi
   local project="$1" note="$2"
   ensure_materials "$project"
   local mat
@@ -133,6 +154,10 @@ print(json.dumps(d))
 }
 
 cmd_add_file() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add-file requires <project_dir> <file_path>" >&2
+    return 1
+  fi
   local project="$1" file_path="$2"
   ensure_materials "$project"
   if [ ! -f "$file_path" ]; then
@@ -167,6 +192,10 @@ print(json.dumps(d))
 }
 
 cmd_add_code() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add-code requires <project_dir> <code> [lang]" >&2
+    return 1
+  fi
   local project="$1" code="$2" lang="${3:-}"
   ensure_materials "$project"
   local mat
@@ -193,6 +222,10 @@ print(json.dumps(d))
 }
 
 cmd_add_theme() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add-theme requires <project_dir> <theme>" >&2
+    return 1
+  fi
   local project="$1" theme="$2"
   ensure_materials "$project"
   local mat
@@ -210,6 +243,10 @@ print(json.dumps(d))
 }
 
 cmd_add_angle() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: add-angle requires <project_dir> <angle>" >&2
+    return 1
+  fi
   local project="$1" angle="$2"
   ensure_materials "$project"
   local mat
@@ -263,7 +300,7 @@ cmd_clear() {
   mf="$(materials_file "$project")"
   if [ -f "$mf" ]; then
     python3 -c "
-import json
+import json, sys
 d = {
     'sources': [],
     'themes': [],
@@ -271,10 +308,12 @@ d = {
     'technical_depth': 'unknown',
     'source_count': 0
 }
-with open('$mf', 'w') as f:
+with open(sys.argv[1], 'w') as f:
     json.dump(d, f, indent=2)
-"
+" "$mf"
     echo "Materials cleared."
+  else
+    echo "No materials file to clear." >&2
   fi
 }
 

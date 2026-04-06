@@ -30,14 +30,14 @@ ensure_analytics() {
   mkdir -p "$ANALYTICS_DIR"
   if [ ! -f "$ANALYTICS_FILE" ]; then
     python3 -c "
-import json, time
+import json, sys, time
 d = {
     'articles': {},
     'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 }
-with open('$ANALYTICS_FILE', 'w') as f:
+with open(sys.argv[1], 'w') as f:
     json.dump(d, f, indent=2)
-"
+" "$ANALYTICS_FILE"
   fi
 }
 
@@ -50,6 +50,10 @@ validate_metric() {
 }
 
 cmd_record() {
+  if [ $# -lt 3 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
+    echo "ERROR: record requires <article_id> <metric> <value>" >&2
+    return 1
+  fi
   local article_id="$1" metric="$2" value="$3"
   validate_metric "$metric"
   ensure_analytics
@@ -88,6 +92,10 @@ print(f'Recorded {metric}={value} for {article_id}')
 }
 
 cmd_record_batch() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: record-batch requires <article_id> <json_metrics>" >&2
+    return 1
+  fi
   local article_id="$1" json_metrics="$2"
   ensure_analytics
   python3 -c "
@@ -140,6 +148,10 @@ print(f'Recorded {len(metrics)} metrics for {article_id}')
 }
 
 cmd_query() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: query requires <article_id>" >&2
+    return 1
+  fi
   local article_id="$1"
   ensure_analytics
   python3 -c "
@@ -242,6 +254,10 @@ print(json.dumps(result, indent=2))
 }
 
 cmd_feed_taste() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: feed-taste requires <project_dir>" >&2
+    return 1
+  fi
   local project_dir="$1"
   ensure_analytics
 
@@ -419,6 +435,10 @@ for metric, values in sorted(all_metrics.items()):
 }
 
 cmd_compare() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: compare requires <article_id_1> <article_id_2>" >&2
+    return 1
+  fi
   local id1="$1" id2="$2"
   ensure_analytics
   python3 -c "

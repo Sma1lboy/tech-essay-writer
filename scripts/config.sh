@@ -119,6 +119,10 @@ print(f\"Updated: {d.get('updated_at', 'never')}\")
 }
 
 cmd_get() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: get requires <key>" >&2
+    return 1
+  fi
   local key="$1"
   local config
   config=$(read_config)
@@ -143,6 +147,10 @@ else:
 }
 
 cmd_set() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: set requires <key> <value>" >&2
+    return 1
+  fi
   local key="$1" value="$2"
   local config
   config=$(read_config)
@@ -237,6 +245,10 @@ else:
 }
 
 cmd_add_platform() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: add-platform requires <platform>" >&2
+    return 1
+  fi
   local platform="$1"
   if ! echo "$VALID_PLATFORMS" | grep -qw "$platform"; then
     echo "ERROR: Invalid platform '$platform'. Valid: $VALID_PLATFORMS" >&2
@@ -275,6 +287,10 @@ else:
 }
 
 cmd_remove_platform() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: remove-platform requires <platform>" >&2
+    return 1
+  fi
   local platform="$1"
   local config
   config=$(read_config)
@@ -310,6 +326,10 @@ else:
 }
 
 cmd_add_audience() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: add-audience requires <audience>" >&2
+    return 1
+  fi
   local audience="$1"
   local config
   config=$(read_config)
@@ -343,6 +363,10 @@ else:
 }
 
 cmd_remove_audience() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: remove-audience requires <audience>" >&2
+    return 1
+  fi
   local audience="$1"
   local config
   config=$(read_config)

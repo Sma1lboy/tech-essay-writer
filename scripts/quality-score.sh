@@ -7,6 +7,12 @@ PROJECT_DIR="${1:?project_dir required}"
 VERBOSE="${2:-}"
 STATE_DIR="$PROJECT_DIR/.essay-state"
 
+if [ ! -d "$STATE_DIR" ]; then
+  echo "ERROR: State directory not found: $STATE_DIR" >&2
+  echo "Has the pipeline been initialized? Run pipeline-state.sh init first." >&2
+  exit 1
+fi
+
 python3 - "$STATE_DIR" "$VERBOSE" << 'PYEOF'
 import json, sys, os, glob
 

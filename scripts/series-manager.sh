@@ -32,6 +32,10 @@ ensure_series() {
 }
 
 cmd_create() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: create requires <name> <description>" >&2
+    return 1
+  fi
   local name="$1" description="$2"
   ensure_series
   python3 -c "
@@ -73,6 +77,10 @@ print(f'Created series: {name} ({series_id})')
 }
 
 cmd_add() {
+  if [ $# -lt 3 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
+    echo "ERROR: add requires <series_id> <article_id> <title> [position]" >&2
+    return 1
+  fi
   local series_id="$1" article_id="$2" title="$3" position="${4:-}"
   ensure_series
   python3 -c "
@@ -148,6 +156,10 @@ else:
 }
 
 cmd_show() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: show requires <series_id>" >&2
+    return 1
+  fi
   local series_id="$1"
   ensure_series
   python3 -c "
@@ -177,6 +189,10 @@ sys.exit(1)
 }
 
 cmd_context() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: context requires <series_id>" >&2
+    return 1
+  fi
   local series_id="$1"
   ensure_series
   python3 -c "
@@ -212,6 +228,10 @@ sys.exit(1)
 }
 
 cmd_set_arc() {
+  if [ $# -lt 2 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "ERROR: set-arc requires <series_id> <arc_description>" >&2
+    return 1
+  fi
   local series_id="$1" arc_description="$2"
   ensure_series
   python3 -c "
@@ -248,6 +268,10 @@ print(f'Set arc for {series_id}')
 }
 
 cmd_set_summary() {
+  if [ $# -lt 3 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
+    echo "ERROR: set-summary requires <series_id> <article_id> <summary>" >&2
+    return 1
+  fi
   local series_id="$1" article_id="$2" summary="$3"
   ensure_series
   python3 -c "
@@ -293,6 +317,10 @@ print(f'Set summary for {article_id} in {series_id}')
 }
 
 cmd_next_position() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: next-position requires <series_id>" >&2
+    return 1
+  fi
   local series_id="$1"
   ensure_series
   python3 -c "
@@ -314,6 +342,10 @@ sys.exit(1)
 }
 
 cmd_search() {
+  if [ -z "${1:-}" ]; then
+    echo "ERROR: search requires <query>" >&2
+    return 1
+  fi
   local query="$1"
   ensure_series
   python3 -c "
@@ -348,6 +380,10 @@ else:
 }
 
 cmd_reorder() {
+  if [ $# -lt 3 ] || [ -z "${1:-}" ] || [ -z "${2:-}" ] || [ -z "${3:-}" ]; then
+    echo "ERROR: reorder requires <series_id> <article_id> <new_position>" >&2
+    return 1
+  fi
   local series_id="$1" article_id="$2" new_position="$3"
   ensure_series
   python3 -c "
