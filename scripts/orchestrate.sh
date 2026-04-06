@@ -228,12 +228,28 @@ cmd_build_outline_prompts() {
   local taste
   taste=$(read_if_exists "$HOME/.tech-essay-writer/taste-memory.json")
 
+  # Map variant to article template
+  local template_name=""
+  case "$variant" in
+    A) template_name="tutorial.md" ;;
+    B) template_name="deep-dive.md" ;;
+    C) template_name="narrative.md" ;;
+  esac
+  local template_content=""
+  if [ -n "$template_name" ] && [ -f "$SKILL_DIR/templates/$template_name" ]; then
+    template_content=$(cat "$SKILL_DIR/templates/$template_name")
+  fi
+
   cat << PROMPT_END
 $(read_prompt "outliner.md")
 
 ## Your Assigned Variant: $variant
 
 Generate outline variant $variant as described in the variant styles above.
+
+## Article Type Template Reference
+
+${template_content:-"(no template available)"}
 
 ## Research Synthesis
 
