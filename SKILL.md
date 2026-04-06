@@ -61,11 +61,17 @@ agents for each stage, evaluate their output, and advance the pipeline.
 
 ### Stage 1: INTAKE
 
-Collect the user's raw materials. For each material the user provides:
+Collect the user's raw materials. First, auto-detect input types:
+```bash
+bash "$SKILL_DIR/scripts/detect-input.sh" "<user's input text>"
+```
 
-- **URLs**: Use WebFetch to retrieve content, then:
+Then process each detected item:
+
+- **URLs**: Add, then fetch content via WebFetch:
   ```bash
   bash "$SKILL_DIR/scripts/intake-materials.sh" add-url "$PROJECT_DIR" "<url>" "<title>"
+  # After fetching: bash "$SKILL_DIR/scripts/update-material.sh" "$PROJECT_DIR" "<id>" "<content>" '<["key point"]>'
   ```
 - **Notes/ideas**: 
   ```bash
