@@ -31,6 +31,7 @@ Commands:
   build-analytics-insights Output performance insights from analytics for prompt injection
   build-analytics-summary Show performance trends and analytics summary
   build-config-summary  Build config context summary for prompt injection
+  build-topic-research   Generate research brief (questions, landscape, angles) for a topic
   build-title-variations Generate scored title variations from research data
   build-hook-variations  Generate scored opening hook variations
   list-platforms        List all available platform format names
@@ -41,6 +42,8 @@ Commands:
   rollback <id>         Restore state from a checkpoint
   retry-stage <stage>   Reset and retry a failed stage
   resume                Detect partial state and advise next action
+  export <format> [out] Export articles (bundle|markdown|html|json|archive)
+  list-archive [--json] List archived articles
 EOF
 }
 
@@ -929,6 +932,18 @@ cmd_build_seo_metadata() {
   bash "$SKILL_DIR/scripts/seo-metadata.sh" "$PROJECT_DIR" "$verbose"
 }
 
+cmd_build_topic_research() {
+  local topic="${1:-}"
+  if [ -z "$topic" ]; then
+    topic=$(cached_pipeline_topic)
+  fi
+  if [ -z "$topic" ]; then
+    echo '{"error":"topic required — pass as argument or set in pipeline-state.json"}' >&2
+    return 1
+  fi
+  bash "$SKILL_DIR/scripts/topic-research.sh" "$PROJECT_DIR" "$topic"
+}
+
 cmd_build_title_variations() {
   local count="${1:-10}"
   bash "$SKILL_DIR/scripts/title-generator.sh" "$PROJECT_DIR" "$count"
@@ -1373,6 +1388,18 @@ else:
 " "$STATE_DIR"
 }
 
+# ─── Export commands ──────────────────────────────────────────────────────────
+
+cmd_export() {
+  local format="${1:?export format required}"
+  local output_dir="${2:-}"
+  bash "$SKILL_DIR/scripts/export.sh" "$PROJECT_DIR" "$format" "$output_dir"
+}
+
+cmd_list_archive() {
+  bash "$SKILL_DIR/scripts/export.sh" list-archive "$@"
+}
+
 # Main dispatch
 case "$CMD" in
   status) cmd_status ;;
@@ -1389,6 +1416,7 @@ case "$CMD" in
   build-calibration-summary) cmd_build_calibration_summary ;;
   build-influence-score) cmd_build_influence_score "$@" ;;
   build-seo-metadata) cmd_build_seo_metadata "$@" ;;
+  build-topic-research) cmd_build_topic_research "$@" ;;
   build-title-variations) cmd_build_title_variations "$@" ;;
   build-hook-variations) cmd_build_hook_variations "$@" ;;
   build-code-validation) cmd_build_code_validation "$@" ;;
@@ -1407,5 +1435,7 @@ case "$CMD" in
   rollback) cmd_rollback "$@" ;;
   retry-stage) cmd_retry_stage "$@" ;;
   resume) cmd_resume ;;
+  export) cmd_export "$@" ;;
+  list-archive) cmd_list_archive "$@" ;;
   *) usage; exit 1 ;;
 esac
