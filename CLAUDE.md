@@ -30,6 +30,8 @@ scripts/
   cross-reference.sh        # Published article registry
   author-profile.sh        # Author identity management
   expertise-graph.sh       # Topic authority tracking
+  influence-score.sh        # Influence potential predictor (novelty, SEO, social, audience)
+  seo-metadata.sh           # SEO metadata generator (OG, meta, JSON-LD, keyword density)
   fetch-urls.sh             # URL content fetcher
   update-material.sh        # Update material with fetched content
 prompts/
@@ -64,6 +66,7 @@ tests/
   test_orchestrate.sh       # Integration tests for orchestrator (54 tests)
   test_e2e_dryrun.sh        # E2E dry run simulation (53 tests)
   test_branding.sh          # Personal branding engine tests
+  test_influence_seo.sh     # Influence score + SEO metadata tests
   run-all.sh                # Test runner
 ```
 
@@ -88,6 +91,8 @@ During execution, `.essay-state/` contains:
 - `final-wechat.md` — WeChat公众号 platform version
 - `final-juejin.md` — 掘金 platform version
 - `social-package.json` — social media snippets
+- `influence-score.json` — predicted influence/reach potential
+- `seo-metadata.json` — OpenGraph, meta tags, JSON-LD, keyword density
 
 ## Conventions
 
@@ -101,5 +106,5 @@ During execution, `.essay-state/` contains:
 ## Testing
 
 ```bash
-bash tests/run-all.sh  # 136 tests across 3 suites
+bash tests/run-all.sh  # 336 tests across 5 suites
 ```

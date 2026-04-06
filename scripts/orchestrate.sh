@@ -21,6 +21,8 @@ Commands:
   build-format-prompts  Build formatter prompts (internal|external|medium|devto|hashnode|wechat|juejin)
   build-social-prompt   Build social media package agent prompt
   build-calibration-summary  Build human-readable calibration summary
+  build-influence-score Compute influence score from state data (no agent needed)
+  build-seo-metadata    Generate SEO metadata from article + state data (no agent needed)
   list-platforms        List all available platform format names
   check-convergence     Check if refinement loop should continue
 EOF
@@ -760,6 +762,16 @@ if notes:
 " "$calibration"
 }
 
+cmd_build_influence_score() {
+  local verbose="${1:-}"
+  bash "$SKILL_DIR/scripts/influence-score.sh" "$PROJECT_DIR" "$SKILL_DIR" "$verbose"
+}
+
+cmd_build_seo_metadata() {
+  local verbose="${1:-}"
+  bash "$SKILL_DIR/scripts/seo-metadata.sh" "$PROJECT_DIR" "$verbose"
+}
+
 cmd_check_convergence() {
   local round="${1:-1}"
   local adv_review
@@ -805,6 +817,8 @@ case "$CMD" in
   build-format-prompts) cmd_build_format_prompts "$@" ;;
   build-social-prompt) cmd_build_social_prompt ;;
   build-calibration-summary) cmd_build_calibration_summary ;;
+  build-influence-score) cmd_build_influence_score "$@" ;;
+  build-seo-metadata) cmd_build_seo_metadata "$@" ;;
   list-platforms) cmd_list_platforms ;;
   check-convergence) cmd_check_convergence "$@" ;;
   *) usage; exit 1 ;;
