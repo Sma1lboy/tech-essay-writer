@@ -7,7 +7,7 @@ PROJECT_DIR="$1"
 STATE_DIR="$PROJECT_DIR/.essay-state"
 OUTPUT="$STATE_DIR/review-panel-summary.json"
 
-python3 << 'PYEOF'
+python3 - "$STATE_DIR" << 'PYEOF'
 import json, os, sys, glob
 
 state_dir = sys.argv[1]
@@ -109,4 +109,4 @@ print(json.dumps({
     "total_issues": len(summary["all_issues"]),
     "ratings": summary["ratings"]
 }, indent=2))
-PYEOF "$STATE_DIR"
+PYEOF
