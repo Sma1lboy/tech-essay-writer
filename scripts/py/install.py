@@ -11,7 +11,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(os.path.dirname(SCRIPT_DIR))  # scripts/py/../../
 SKILL_DIR = os.path.join(os.path.expanduser("~"), ".claude", "skills", "tech-essay-writer")
 
-COMPONENTS = ["SKILL.md", "scripts", "prompts", "templates"]
+FLAT_COMPONENTS = ["SKILL.md", "prompts", "templates"]
+NESTED_COMPONENTS = [("scripts/py", "scripts/py")]  # (source_rel, dest_rel)
 
 
 def usage():
@@ -19,6 +20,26 @@ def usage():
 
 Install:   install.py
 Uninstall: install.py --uninstall""")
+
+
+def _link_component(target, link):
+    """Create a symlink from link -> target, removing stale entries."""
+    if not os.path.exists(target):
+        print(f"Warning: {target} does not exist, skipping")
+        return
+
+    # Remove stale symlink or existing file/directory at the link path
+    if os.path.islink(link):
+        os.unlink(link)
+    elif os.path.exists(link):
+        print(f"Warning: {link} exists and is not a symlink, replacing")
+        if os.path.isdir(link):
+            shutil.rmtree(link)
+        else:
+            os.unlink(link)
+
+    os.symlink(target, link)
+    print(f"Linked: {link} -> {target}")
 
 
 def do_install():
@@ -31,27 +52,18 @@ def do_install():
     os.makedirs(os.path.dirname(SKILL_DIR), exist_ok=True)
     os.makedirs(SKILL_DIR, exist_ok=True)
 
-    # Symlink each component
-    for component in COMPONENTS:
+    # Symlink flat components
+    for component in FLAT_COMPONENTS:
         target = os.path.join(PROJECT_DIR, component)
         link = os.path.join(SKILL_DIR, component)
+        _link_component(target, link)
 
-        if not os.path.exists(target):
-            print(f"Warning: {target} does not exist, skipping")
-            continue
-
-        # Remove stale symlink or existing file/directory at the link path
-        if os.path.islink(link):
-            os.unlink(link)
-        elif os.path.exists(link):
-            print(f"Warning: {link} exists and is not a symlink, replacing")
-            if os.path.isdir(link):
-                shutil.rmtree(link)
-            else:
-                os.unlink(link)
-
-        os.symlink(target, link)
-        print(f"Linked: {link} -> {target}")
+    # Symlink nested components (create parent dirs as needed)
+    for source_rel, dest_rel in NESTED_COMPONENTS:
+        target = os.path.join(PROJECT_DIR, source_rel)
+        link = os.path.join(SKILL_DIR, dest_rel)
+        os.makedirs(os.path.join(SKILL_DIR, os.path.dirname(dest_rel)), exist_ok=True)
+        _link_component(target, link)
 
     print(f"Installed tech-essay-writer skill to {SKILL_DIR}")
     return 0
@@ -68,12 +80,26 @@ def do_uninstall():
         print(f"Removed symlink: {SKILL_DIR}")
         return 0
 
-    # Remove individual component symlinks
-    for component in COMPONENTS:
+    # Remove flat component symlinks
+    for component in FLAT_COMPONENTS:
         link = os.path.join(SKILL_DIR, component)
         if os.path.islink(link):
             os.unlink(link)
             print(f"Removed: {link}")
+
+    # Remove nested component symlinks and empty parent dirs
+    for _source_rel, dest_rel in NESTED_COMPONENTS:
+        link = os.path.join(SKILL_DIR, dest_rel)
+        if os.path.islink(link):
+            os.unlink(link)
+            print(f"Removed: {link}")
+        parent = os.path.join(SKILL_DIR, os.path.dirname(dest_rel))
+        if os.path.isdir(parent):
+            try:
+                os.rmdir(parent)
+                print(f"Removed directory: {parent}")
+            except OSError:
+                pass
 
     # Remove the directory if empty
     if os.path.isdir(SKILL_DIR):

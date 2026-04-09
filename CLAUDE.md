@@ -42,7 +42,7 @@ outliers and blind spots.
 
 ### Stage 6: REFINEMENT LOOP (Max 3 Rounds)
 A refiner agent addresses issues from the review panel. After each round, drafts
-are compared via article-compare.sh and the adversarial reviewer re-checks. The
+are compared via article_compare.py and the adversarial reviewer re-checks. The
 loop exits on convergence or max rounds.
 
 ### Stage 7: DUAL-FORMAT POLISH
@@ -68,7 +68,7 @@ data back into taste memory for future articles.
 | `reviewer-external.md` | Fresh-eyes accessibility, jargon check | CLEAR / NEEDS_CONTEXT / INACCESSIBLE |
 | `reviewer-factcheck.md` | Verify every technical claim | VERIFIED / NEEDS_VERIFICATION / UNRELIABLE |
 
-After aggregation, `calibrate-reviews.sh` normalizes scores to 1-10, detects
+After aggregation, `calibrate_reviews.py` normalizes scores to 1-10, detects
 outliers (>1.5 std dev from panel average), identifies blind spots (topics no
 reviewer covered), and measures inter-reviewer agreement.
 
@@ -76,44 +76,44 @@ reviewer covered), and measures inter-reviewer agreement.
 
 | Script | Description |
 |--------|-------------|
-| `orchestrate.sh` | Pipeline orchestrator -- 27 commands for prompt building, stage control, resume, checkpoint management, readability, word analysis |
-| `pipeline-state.sh` | Pipeline state CRUD with atomic writes (init, set-stage, get-stage, read, set-field, get-field, add-review, refinement-round, complete) |
-| `intake-materials.sh` | Material intake: add-url, add-note, add-file, add-code, add-theme, add-angle, list, export, clear |
-| `detect-input.sh` | Classify user input text into URLs, code blocks, file paths, notes, themes |
-| `aggregate-reviews.sh` | Aggregate 7 review JSON files into panel summary with consensus determination |
-| `calibrate-reviews.sh` | Post-aggregate calibration: normalize scores, detect outliers and blind spots |
-| `quality-score.sh` | Composite 0-10 quality score from weighted review dimensions |
-| `taste-memory.sh` | Persistent writing style preferences (read/update/record-choice/get-preference/history/diff-learn/feedback/suggest) |
-| `cross-reference.sh` | Published article registry for internal linking (add/search/list/suggest/remove) |
-| `config.sh` | User configuration management (init/read/get/set/add-platform/remove-platform/add-audience/remove-audience/reset/export) |
-| `author-profile.sh` | Author identity management (init/read/set/set-social/add-expertise/remove-expertise/set-voice/get-bio/get-social-handles) |
-| `expertise-graph.sh` | Topic authority tracking with recency-weighted scoring (update/query/top/suggest/read) |
-| `influence-score.sh` | Influence potential predictor (novelty, SEO, social, audience, timing) |
-| `seo-metadata.sh` | SEO metadata generator (OpenGraph, meta tags, JSON-LD, keyword density) |
-| `code-validate.sh` | Code example validator (syntax checking, import verification, fragment detection) |
-| `diagram-suggest.sh` | Diagram/image suggestion engine with Mermaid syntax output (bilingual) |
-| `readability-score.sh` | Readability analysis: Flesch-Kincaid grade, reading ease, sentence metrics, passive voice, complex sentences |
-| `word-frequency.sh` | Word frequency analysis: top-N frequencies, overused words, jargon density, AI-generated text pattern detection |
-| `article-compare.sh` | Side-by-side draft comparison: word count diff, structure diff, reading level diff, section changes, improvements/regressions |
-| `series-manager.sh` | Article series manager (create/add/list/show/context/set-arc/set-summary/next-position/search/reorder) |
-| `analytics-feedback.sh` | Analytics feedback loop (record/record-batch/query/top/trends/feed-taste/summary/compare) |
-| `progress-display.sh` | Rich pipeline progress visualization (stage map, %, quality dashboard, artifacts) |
-| `publish-check.sh` | Pre-publish checklist (validates article readiness across multiple dimensions) |
-| `publishing-guide.sh` | Per-platform publishing workflow guides with SEO tips (internal/external/medium/devto/hashnode/wechat/juejin/all) |
-| `checkpoint.sh` | State checkpoint and recovery (snapshot/list/rollback/latest/clean) |
-| `dry-run.sh` | Full pipeline simulation with mock data -- validates infrastructure without LLM agents (supports --chinese for zh mode) |
-| `install.sh` | Skill installer/uninstaller (symlink components into ~/.claude/skills/) |
-| `fetch-urls.sh` | URL content fetcher for materials intake |
-| `update-material.sh` | Update a specific material source with fetched content and key points |
-| `export.sh` | Export and archive system (bundle/markdown/html/json/archive formats, list-archive) |
-| `hook-workshop.sh` | Opening hook generator and scorer (story/data/question/contrast/bold styles) |
-| `title-generator.sh` | Title variation generator with scoring from research and materials |
-| `topic-research.sh` | Research question generator, competitive landscape queries, unique angles, and research brief from a topic |
-| `outline-mixer.sh` | Outline variant mixer: combine elements from multiple outlines |
-| `metrics-dashboard.sh` | Comprehensive metrics dashboard: pipeline health, quality trends, author growth |
-| `summary.sh` | Quick project status and capability overview |
-| `help.sh` | Usage reference: list all scripts with descriptions, or detailed help for a specific command |
-| `version.sh` | Version tracking: show current version, bump major/minor/patch |
+| `orchestrate.py` | Pipeline orchestrator -- 27 commands for prompt building, stage control, resume, checkpoint management, readability, word analysis |
+| `pipeline_state.py` | Pipeline state CRUD with atomic writes (init, set-stage, get-stage, read, set-field, get-field, add-review, refinement-round, complete) |
+| `intake_materials.py` | Material intake: add-url, add-note, add-file, add-code, add-theme, add-angle, list, export, clear |
+| `detect_input.py` | Classify user input text into URLs, code blocks, file paths, notes, themes |
+| `aggregate_reviews.py` | Aggregate 7 review JSON files into panel summary with consensus determination |
+| `calibrate_reviews.py` | Post-aggregate calibration: normalize scores, detect outliers and blind spots |
+| `quality_score.py` | Composite 0-10 quality score from weighted review dimensions |
+| `taste_memory.py` | Persistent writing style preferences (read/update/record-choice/get-preference/history/diff-learn/feedback/suggest) |
+| `cross_reference.py` | Published article registry for internal linking (add/search/list/suggest/remove) |
+| `config.py` | User configuration management (init/read/get/set/add-platform/remove-platform/add-audience/remove-audience/reset/export) |
+| `author_profile.py` | Author identity management (init/read/set/set-social/add-expertise/remove-expertise/set-voice/get-bio/get-social-handles) |
+| `expertise_graph.py` | Topic authority tracking with recency-weighted scoring (update/query/top/suggest/read) |
+| `influence_score.py` | Influence potential predictor (novelty, SEO, social, audience, timing) |
+| `seo_metadata.py` | SEO metadata generator (OpenGraph, meta tags, JSON-LD, keyword density) |
+| `code_validate.py` | Code example validator (syntax checking, import verification, fragment detection) |
+| `diagram_suggest.py` | Diagram/image suggestion engine with Mermaid syntax output (bilingual) |
+| `readability_score.py` | Readability analysis: Flesch-Kincaid grade, reading ease, sentence metrics, passive voice, complex sentences |
+| `word_frequency.py` | Word frequency analysis: top-N frequencies, overused words, jargon density, AI-generated text pattern detection |
+| `article_compare.py` | Side-by-side draft comparison: word count diff, structure diff, reading level diff, section changes, improvements/regressions |
+| `series_manager.py` | Article series manager (create/add/list/show/context/set-arc/set-summary/next-position/search/reorder) |
+| `analytics_feedback.py` | Analytics feedback loop (record/record-batch/query/top/trends/feed-taste/summary/compare) |
+| `progress_display.py` | Rich pipeline progress visualization (stage map, %, quality dashboard, artifacts) |
+| `publish_check.py` | Pre-publish checklist (validates article readiness across multiple dimensions) |
+| `publishing_guide.py` | Per-platform publishing workflow guides with SEO tips (internal/external/medium/devto/hashnode/wechat/juejin/all) |
+| `checkpoint.py` | State checkpoint and recovery (snapshot/list/rollback/latest/clean) |
+| `dry_run.py` | Full pipeline simulation with mock data -- validates infrastructure without LLM agents (supports --chinese for zh mode) |
+| `install.py` | Skill installer/uninstaller (symlink components into ~/.claude/skills/) |
+| `fetch_urls.py` | URL content fetcher for materials intake |
+| `update_material.py` | Update a specific material source with fetched content and key points |
+| `export.py` | Export and archive system (bundle/markdown/html/json/archive formats, list-archive) |
+| `hook_workshop.py` | Opening hook generator and scorer (story/data/question/contrast/bold styles) |
+| `title_generator.py` | Title variation generator with scoring from research and materials |
+| `topic_research.py` | Research question generator, competitive landscape queries, unique angles, and research brief from a topic |
+| `outline_mixer.py` | Outline variant mixer: combine elements from multiple outlines |
+| `metrics_dashboard.py` | Comprehensive metrics dashboard: pipeline health, quality trends, author growth |
+| `summary.py` | Quick project status and capability overview |
+| `help.py` | Usage reference: list all scripts with descriptions, or detailed help for a specific command |
+| `version.py` | Version tracking: show current version, bump major/minor/patch |
 
 ## Prompt Inventory (21 prompts)
 
@@ -160,38 +160,40 @@ reviewer covered), and measures inter-reviewer agreement.
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
-| `test_pipeline.sh` | 66 | Core scripts: pipeline-state, intake, taste-memory, aggregate, calibrate |
-| `test_orchestrate.sh` | 85 | Orchestrator: prompt building, stage transitions, resume |
-| `test_e2e_dryrun.sh` | 83 | Full pipeline simulation with mock data |
-| `test_e2e_integration.sh` | 86 | End-to-end integration tests |
-| `test_error_handling.sh` | 116 | Error handling and edge cases |
-| `test_branding.sh` | 73 | Personal branding: author-profile, expertise-graph, social-package |
-| `test_influence_seo.sh` | 54 | Influence score + SEO metadata |
-| `test_templates_codevalidate.sh` | 150 | Template loading + code validation |
-| `test_diagram_suggest.sh` | 97 | Diagram suggestion engine |
-| `test_series_analytics.sh` | 79 | Series manager + analytics feedback |
-| `test_config.sh` | 97 | Configuration system |
-| `test_progress_display.sh` | 39 | Progress display visualization |
-| `test_progress_publishing.sh` | 192 | Progress display + publishing guides |
-| `test_checkpoint.sh` | 113 | Checkpoint, auto-snapshot, retry-stage, resume |
-| `test_install.sh` | 35 | Install/uninstall idempotency and edge cases |
-| `test_taste_memory.sh` | 65 | Taste memory: diff-learn, feedback, and suggest |
-| `test_readability.sh` | 51 | Readability scoring + word frequency analysis |
-| `test_article_compare.sh` | 47 | Article draft comparison |
-| `test_export.sh` | 69 | Export and archive system (bundle/markdown/html/json/archive/list-archive) |
-| `test_title_hook.sh` | 59 | Title generator + hook workshop |
-| `test_topic_research.sh` | 59 | Topic research question generation and brief output |
-| `test_chinese_reviewer.sh` | 23 | Chinese reviewer integration (language=zh activation, quality-score, pipeline-state) |
-| `test_outline_mixer.sh` | — | Outline mixer tests |
-| `test_metrics_dashboard.sh` | — | Metrics dashboard tests |
-| `test_help_version.sh` | 46 | Help command listing + version tracking (show, raw, bump, help flags) |
+| `test_pipeline.py` | 66 | Core scripts: pipeline-state, intake, taste-memory, aggregate, calibrate |
+| `test_orchestrate.py` | 85 | Orchestrator: prompt building, stage transitions, resume |
+| `test_e2e_dryrun.py` | 83 | Full pipeline simulation with mock data |
+| `test_e2e_integration.py` | 86 | End-to-end integration tests |
+| `test_error_handling.py` | 116 | Error handling and edge cases |
+| `test_branding.py` | 73 | Personal branding: author-profile, expertise-graph, social-package |
+| `test_influence_seo.py` | 54 | Influence score + SEO metadata |
+| `test_templates_codevalidate.py` | 150 | Template loading + code validation |
+| `test_diagram_suggest.py` | 97 | Diagram suggestion engine |
+| `test_series_analytics.py` | 79 | Series manager + analytics feedback |
+| `test_config.py` | 97 | Configuration system |
+| `test_progress_display.py` | 39 | Progress display visualization |
+| `test_progress_publishing.py` | 192 | Progress display + publishing guides |
+| `test_checkpoint.py` | 113 | Checkpoint, auto-snapshot, retry-stage, resume |
+| `test_install.py` | 35 | Install/uninstall idempotency and edge cases |
+| `test_taste_memory.py` | 65 | Taste memory: diff-learn, feedback, and suggest |
+| `test_readability.py` | 51 | Readability scoring + word frequency analysis |
+| `test_article_compare.py` | 47 | Article draft comparison |
+| `test_export.py` | 69 | Export and archive system (bundle/markdown/html/json/archive/list-archive) |
+| `test_title_hook.py` | 59 | Title generator + hook workshop |
+| `test_topic_research.py` | 59 | Topic research question generation and brief output |
+| `test_chinese_reviewer.py` | 23 | Chinese reviewer integration (language=zh activation, quality-score, pipeline-state) |
+| `test_outline_mixer.py` | — | Outline mixer tests |
+| `test_metrics_dashboard.py` | — | Metrics dashboard tests |
+| `test_help_version.py` | 46 | Help command listing + version tracking (show, raw, bump, help flags) |
 
 Run all tests:
 ```bash
-bash tests/run-all.sh                    # All test suites
-bash tests/run-all.sh --filter readab    # Filter by pattern
-bash tests/run-all.sh --verbose --timing # Show all output + timing
+pytest tests/py/                         # All test suites
+pytest tests/py/ -k readab              # Filter by pattern
+pytest tests/py/ -v                      # Verbose output
 ```
+
+Python dependencies and pytest configuration are defined in `pyproject.toml`.
 
 ## State Management
 
@@ -228,7 +230,7 @@ Created per-project during execution. Contains all pipeline artifacts:
 ```
 
 All state writes are atomic (write to temp file + rename). Auto-snapshots are
-created at every stage transition via `pipeline-state.sh set-stage`.
+created at every stage transition via `pipeline_state.py set-stage`.
 
 ### Persistent Data (`~/.tech-essay-writer/`)
 
@@ -249,16 +251,16 @@ Persists across sessions and projects:
 User preferences at `~/.tech-essay-writer/config.json`. Auto-applies to new pipelines.
 
 ```bash
-bash scripts/config.sh init                        # Create default config
-bash scripts/config.sh set language zh             # Set language preference (en|zh)
-bash scripts/config.sh set writing_style narrative # Set style (technical|conversational|narrative|formal|casual|academic)
-bash scripts/config.sh add-platform medium         # Add default platform
-bash scripts/config.sh remove-platform medium      # Remove a platform
-bash scripts/config.sh add-audience "senior devs"  # Add target audience
-bash scripts/config.sh set max_refinement_rounds 5 # Set max refinement rounds (1-10)
-bash scripts/config.sh read                        # Show current config
-bash scripts/config.sh export                      # Output full JSON
-bash scripts/config.sh reset                       # Reset to defaults
+python3 scripts/py/config.py init                        # Create default config
+python3 scripts/py/config.py set language zh             # Set language preference (en|zh)
+python3 scripts/py/config.py set writing_style narrative # Set style (technical|conversational|narrative|formal|casual|academic)
+python3 scripts/py/config.py add-platform medium         # Add default platform
+python3 scripts/py/config.py remove-platform medium      # Remove a platform
+python3 scripts/py/config.py add-audience "senior devs"  # Add target audience
+python3 scripts/py/config.py set max_refinement_rounds 5 # Set max refinement rounds (1-10)
+python3 scripts/py/config.py read                        # Show current config
+python3 scripts/py/config.py export                      # Output full JSON
+python3 scripts/py/config.py reset                       # Reset to defaults
 ```
 
 Config keys: `default_platforms`, `writing_style`, `target_audiences`, `language`,
@@ -269,19 +271,19 @@ Config keys: `default_platforms`, `writing_style`, `target_audiences`, `language
 Install the skill by symlinking components into `~/.claude/skills/`:
 
 ```bash
-bash scripts/install.sh              # Install
-bash scripts/install.sh --uninstall  # Uninstall
+python3 scripts/py/install.py              # Install
+python3 scripts/py/install.py --uninstall  # Uninstall
 ```
 
 Creates `~/.claude/skills/tech-essay-writer/` as a real directory with symlinks
-pointing to `SKILL.md`, `scripts/`, `prompts/`, and `templates/` in the source
+pointing to `SKILL.md`, `scripts/py/`, `prompts/`, and `templates/` in the source
 repo. Running install twice is safe (idempotent). Old whole-directory symlinks
 from prior install methods are automatically replaced.
 
 ## Conventions
 
 - All state writes are atomic (tmp + rename)
-- Agent prompts are built by `orchestrate.sh`, not hardcoded in SKILL.md
+- Agent prompts are built by `orchestrate.py`, not hardcoded in SKILL.md
 - Each reviewer agent gets fresh context (no knowledge of other reviewers)
 - Outline variants run in parallel with no cross-influence (design-shotgun pattern)
 - User checkpoints at every stage transition
@@ -293,6 +295,6 @@ from prior install methods are automatically replaced.
 - Analytics `feed-taste` writes `performance_insights` into taste-memory.json
 - Pipeline state accepts `--series <series_id>` at init to associate articles with a series
 - Language directive (en/zh) propagates to all downstream agents
-- `readability-score.sh` and `word-frequency.sh` run during draft analysis before review
-- `article-compare.sh` runs during refinement to track improvements between draft versions
-- `dry-run.sh` validates the full pipeline without LLM agents (useful after script changes)
+- `readability_score.py` and `word_frequency.py` run during draft analysis before review
+- `article_compare.py` runs during refinement to track improvements between draft versions
+- `dry_run.py` validates the full pipeline without LLM agents (useful after script changes)
