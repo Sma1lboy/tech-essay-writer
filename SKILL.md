@@ -25,27 +25,27 @@ End-to-end pipeline: raw materials → research → outline → draft → advers
 
 ```bash
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-if [ ! -d "$SKILL_DIR/scripts" ]; then
+if [ ! -d "$SKILL_DIR/scripts/py" ]; then
   for dir in ~/.claude/skills/tech-essay-writer /Users/jacksonc/i/tech-essay-writer; do
-    if [ -d "$dir/scripts" ]; then SKILL_DIR="$dir"; break; fi
+    if [ -d "$dir/scripts/py" ]; then SKILL_DIR="$dir"; break; fi
   done
 fi
 PROJECT_DIR="$(pwd)"
 
 # Show version
-bash "$SKILL_DIR/scripts/version.sh" show
+python3 "$SKILL_DIR/scripts/py/version.py" show
 
 echo "SKILL_DIR=$SKILL_DIR"
 echo "PROJECT_DIR=$PROJECT_DIR"
 
 # Initialize state
 mkdir -p .essay-state
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" status 2>/dev/null || echo "Fresh start."
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" status 2>/dev/null || echo "Fresh start."
 
 # Load user config and show defaults
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-config-summary
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-config-summary
 
-# For command reference: bash "$SKILL_DIR/scripts/help.sh"
+# For command reference: python3 "$SKILL_DIR/scripts/py/help.py"
 ```
 
 ## CRITICAL: Act Immediately
@@ -72,33 +72,33 @@ agents for each stage, evaluate their output, and advance the pipeline.
 
 Collect the user's raw materials. First, auto-detect input types:
 ```bash
-bash "$SKILL_DIR/scripts/detect-input.sh" "<user's input text>"
+python3 "$SKILL_DIR/scripts/py/detect_input.py" "<user's input text>"
 ```
 
 Then process each detected item:
 
 - **URLs**: Add, then fetch content via WebFetch:
   ```bash
-  bash "$SKILL_DIR/scripts/intake-materials.sh" add-url "$PROJECT_DIR" "<url>" "<title>"
-  # After fetching: bash "$SKILL_DIR/scripts/update-material.sh" "$PROJECT_DIR" "<id>" "<content>" '<["key point"]>'
+  python3 "$SKILL_DIR/scripts/py/intake_materials.py" add-url "$PROJECT_DIR" "<url>" "<title>"
+  # After fetching: python3 "$SKILL_DIR/scripts/py/update_material.py" "$PROJECT_DIR" "<id>" "<content>" '<["key point"]>'
   ```
 - **Notes/ideas**: 
   ```bash
-  bash "$SKILL_DIR/scripts/intake-materials.sh" add-note "$PROJECT_DIR" "<note text>"
+  python3 "$SKILL_DIR/scripts/py/intake_materials.py" add-note "$PROJECT_DIR" "<note text>"
   ```
 - **Files**: 
   ```bash
-  bash "$SKILL_DIR/scripts/intake-materials.sh" add-file "$PROJECT_DIR" "<path>"
+  python3 "$SKILL_DIR/scripts/py/intake_materials.py" add-file "$PROJECT_DIR" "<path>"
   ```
 - **Code snippets**: 
   ```bash
-  bash "$SKILL_DIR/scripts/intake-materials.sh" add-code "$PROJECT_DIR" "<code>" "<lang>"
+  python3 "$SKILL_DIR/scripts/py/intake_materials.py" add-code "$PROJECT_DIR" "<code>" "<lang>"
   ```
 
 After collecting all materials, analyze them yourself to extract themes and angles:
 ```bash
-bash "$SKILL_DIR/scripts/intake-materials.sh" add-theme "$PROJECT_DIR" "<theme>"
-bash "$SKILL_DIR/scripts/intake-materials.sh" add-angle "$PROJECT_DIR" "<angle>"
+python3 "$SKILL_DIR/scripts/py/intake_materials.py" add-theme "$PROJECT_DIR" "<theme>"
+python3 "$SKILL_DIR/scripts/py/intake_materials.py" add-angle "$PROJECT_DIR" "<angle>"
 ```
 
 For URLs that need fetching, use WebFetch, then update the material with key_points.
@@ -106,31 +106,31 @@ For URLs that need fetching, use WebFetch, then update the material with key_poi
 **Series support:** If the user wants this article as part of a series, associate it:
 ```bash
 # List existing series
-bash "$SKILL_DIR/scripts/series-manager.sh" list
+python3 "$SKILL_DIR/scripts/py/series_manager.py" list
 
 # Create a new series if needed
-bash "$SKILL_DIR/scripts/series-manager.sh" create "<series_name>" "<description>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" create "<series_name>" "<description>"
 
 # Show details of a specific series
-bash "$SKILL_DIR/scripts/series-manager.sh" show "<series_id>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" show "<series_id>"
 
 # Search series by keyword
-bash "$SKILL_DIR/scripts/series-manager.sh" search "<query>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" search "<query>"
 
 # Associate current article with a series
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" series_id "<series_id>"
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-field "$PROJECT_DIR" series_id "<series_id>"
 
 # Add the article to the series reading order
-bash "$SKILL_DIR/scripts/series-manager.sh" add "<series_id>" "<article_id>" "<title>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" add "<series_id>" "<article_id>" "<title>"
 
 # Set the narrative arc for the series
-bash "$SKILL_DIR/scripts/series-manager.sh" set-arc "<series_id>" "<arc_description>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" set-arc "<series_id>" "<arc_description>"
 ```
 Series context is then auto-injected into outline, writer, and formatter prompts.
 
 **Author profile check:**
 ```bash
-bash "$SKILL_DIR/scripts/author-profile.sh" read
+python3 "$SKILL_DIR/scripts/py/author_profile.py" read
 ```
 If the profile is empty or not initialized, ask: "Want to set up your author profile? (name, bio, social handles)"
 This data will be used in formatting and social media package generation.
@@ -138,20 +138,20 @@ This data will be used in formatting and social media package generation.
 **Language detection:** After collecting materials, detect or ask the user's language preference.
 If the user's materials are primarily in Chinese, or the user communicates in Chinese, set language to `zh`. Otherwise default to `en`.
 ```bash
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" language "<zh|en>"
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-field "$PROJECT_DIR" language "<zh|en>"
 ```
 This setting propagates to all downstream agents — they will produce output in the chosen language.
 
 **Checkpoint:** Show user the materials summary:
 ```bash
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-intake-summary
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-intake-summary
 ```
 Ask: "These are the themes and angles I found. Anything to add or emphasize?"
 
 Then advance:
 ```bash
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" research
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-stage "$PROJECT_DIR" research
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 ### Stage 2: RESEARCH SYNTHESIS
@@ -159,7 +159,7 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progre
 Before dispatching the research agent, generate a structured research brief (questions, competitive landscape queries, unique angles) from the topic:
 
 ```bash
-bash "$SKILL_DIR/scripts/topic-research.sh" "$PROJECT_DIR" "<topic>"
+python3 "$SKILL_DIR/scripts/py/topic_research.py" "$PROJECT_DIR" "<topic>"
 ```
 
 This writes `.essay-state/topic-research.json` with research questions, landscape queries, and angle suggestions that feed into the research agent.
@@ -167,7 +167,7 @@ This writes `.essay-state/topic-research.json` with research questions, landscap
 Dispatch a research agent with fresh context:
 
 ```bash
-RESEARCH_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-research-prompt)
+RESEARCH_PROMPT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-research-prompt)
 ```
 
 Launch via Agent tool:
@@ -182,8 +182,8 @@ Ask: "Does this direction feel right?"
 
 Then advance:
 ```bash
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" outline
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-stage "$PROJECT_DIR" outline
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 ### Stage 3: OUTLINE GENERATION (3 Parallel Variants)
@@ -191,9 +191,9 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progre
 Dispatch 3 agents in parallel — each generates a different outline style:
 
 ```bash
-PROMPT_A=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts A)
-PROMPT_B=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts B)
-PROMPT_C=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts C)
+PROMPT_A=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts A)
+PROMPT_B=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts B)
+PROMPT_C=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-outline-prompts C)
 ```
 
 Launch ALL THREE via Agent tool in a SINGLE message (parallel execution):
@@ -209,7 +209,7 @@ gets fresh context. This is the design-shotgun pattern from gstack.
 After all 3 outlines are generated, dispatch the **outline adversarial critique agent**:
 
 ```bash
-CRITIQUE_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-outline-critique-prompt)
+CRITIQUE_PROMPT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-outline-critique-prompt)
 ```
 
 Launch via Agent tool:
@@ -228,9 +228,9 @@ The critic's recommendation helps inform the user's choice but does NOT override
 
 Record the choice:
 ```bash
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" outline_variant "<chosen>"
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" draft
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-field "$PROJECT_DIR" outline_variant "<chosen>"
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-stage "$PROJECT_DIR" draft
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 ### Stage 4: DRAFT WRITING
@@ -238,7 +238,7 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progre
 Dispatch the writer agent:
 
 ```bash
-WRITER_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-writer-prompt "<chosen_variant>")
+WRITER_PROMPT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-writer-prompt "<chosen_variant>")
 ```
 
 Launch via Agent tool:
@@ -254,7 +254,7 @@ If < 500 words, re-dispatch with stronger instructions.
 **Note:** If `series_id` is set, series context (prior articles, narrative arc) is auto-injected into the writer prompt.
 
 ```bash
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" draft_version 1
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-field "$PROJECT_DIR" draft_version 1
 ```
 
 #### Draft Quality Checks
@@ -263,16 +263,16 @@ Before advancing to review, validate code, analyze readability, check word frequ
 
 ```bash
 # Validate code examples in the draft (syntax, imports, fragments)
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-code-validation
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-code-validation
 
 # Readability analysis: Flesch-Kincaid grade, sentence/word metrics, passive voice, complexity
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-readability-report verbose
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-readability-report verbose
 
 # Word frequency: overused words, jargon density, AI-generated text pattern detection
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-word-analysis 25
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-word-analysis 25
 
 # Suggest diagrams/images with Mermaid syntax
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-diagram-suggestions
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-diagram-suggestions
 ```
 
 If code validation finds issues, fix them in the draft before proceeding.
@@ -281,8 +281,8 @@ If AI pattern detection flags high risk, revise the draft to reduce AI-sounding 
 If diagram suggestions are compelling, note them for the refinement stage.
 
 ```bash
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" review
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" show-progress
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-stage "$PROJECT_DIR" review
 ```
 
 ### Stage 5: ADVERSARIAL REVIEW PANEL (7 or 8 Parallel Agents)
@@ -291,18 +291,18 @@ This is the core quality mechanism. Launch 7 independent reviewers in parallel (
 Each gets FRESH CONTEXT — no knowledge of other reviewers.
 
 ```bash
-PROMPT_TECH=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts technical)
-PROMPT_EDIT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts editor)
-PROMPT_ADV=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts adversarial)
-PROMPT_AUD=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts audience)
-PROMPT_SEO=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts seo)
-PROMPT_EXT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts external)
-PROMPT_FC=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts factcheck)
+PROMPT_TECH=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts technical)
+PROMPT_EDIT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts editor)
+PROMPT_ADV=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts adversarial)
+PROMPT_AUD=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts audience)
+PROMPT_SEO=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts seo)
+PROMPT_EXT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts external)
+PROMPT_FC=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts factcheck)
 
 # When language=zh, also dispatch the Chinese writing quality reviewer (8th reviewer)
-LANG=$(bash "$SKILL_DIR/scripts/pipeline-state.sh" get-field "$PROJECT_DIR" language)
+LANG=$(python3 "$SKILL_DIR/scripts/py/pipeline_state.py" get-field "$PROJECT_DIR" language)
 if [ "$LANG" = '"zh"' ] || [ "$LANG" = 'zh' ]; then
-  PROMPT_ZH=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts chinese)
+  PROMPT_ZH=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts chinese)
 fi
 ```
 
@@ -321,22 +321,22 @@ Agent(description="Chinese writing quality review", prompt=PROMPT_ZH)
 
 After all complete, aggregate, score, and calibrate:
 ```bash
-bash "$SKILL_DIR/scripts/aggregate-reviews.sh" "$PROJECT_DIR"
-bash "$SKILL_DIR/scripts/quality-score.sh" "$PROJECT_DIR" verbose
-bash "$SKILL_DIR/scripts/calibrate-reviews.sh" "$PROJECT_DIR"
+python3 "$SKILL_DIR/scripts/py/aggregate_reviews.py" "$PROJECT_DIR"
+python3 "$SKILL_DIR/scripts/py/quality_score.py" "$PROJECT_DIR" verbose
+python3 "$SKILL_DIR/scripts/py/calibrate_reviews.py" "$PROJECT_DIR"
 ```
 
 Read the calibration summary for insights on reviewer agreement and blind spots:
 ```bash
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-calibration-summary
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-calibration-summary
 ```
 
 Read the panel summary, quality score, and calibration. If score < 6.0 or any REJECT/REWRITE/WEAK:
 **Checkpoint:** "Quality score: X/10. The review panel found issues: [summary]. Calibration: [agreement score, outliers, blind spots]. Proceed with refinement?"
 
 ```bash
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-stage "$PROJECT_DIR" refinement
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-stage "$PROJECT_DIR" refinement
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 ### Stage 6: REFINEMENT LOOP (Max 3 Rounds)
@@ -346,7 +346,7 @@ For each round:
 1. Build refiner prompt:
 ```bash
 ROUND=1  # increment each round
-REFINER_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-refiner-prompt $ROUND)
+REFINER_PROMPT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-refiner-prompt $ROUND)
 ```
 
 2. Dispatch refiner agent:
@@ -357,12 +357,12 @@ Agent(description="Refinement round N", prompt=REFINER_PROMPT)
 3. After refinement, compare the new draft against the previous version:
 ```bash
 # Compare draft versions to see what changed (structure, reading level, word count)
-bash "$SKILL_DIR/scripts/article-compare.sh" "$PROJECT_DIR/.essay-state/draft-v1.md" "$PROJECT_DIR/.essay-state/draft-v2.md" --json
+python3 "$SKILL_DIR/scripts/py/article_compare.py" "$PROJECT_DIR/.essay-state/draft-v1.md" "$PROJECT_DIR/.essay-state/draft-v2.md" --json
 ```
 
 4. Re-run ONLY the adversarial reviewer on the new draft:
 ```bash
-PROMPT_ADV=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts adversarial)
+PROMPT_ADV=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-review-prompts adversarial)
 ```
 ```
 Agent(description="Adversarial re-review", prompt=PROMPT_ADV)
@@ -370,7 +370,7 @@ Agent(description="Adversarial re-review", prompt=PROMPT_ADV)
 
 5. Check convergence:
 ```bash
-RESULT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" check-convergence $ROUND)
+RESULT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" check-convergence $ROUND)
 ```
 
 - `CONVERGED` → exit loop, advance to polish
@@ -378,7 +378,7 @@ RESULT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" ch
 - `MAX_ROUNDS` → exit loop with best version
 
 ```bash
-bash "$SKILL_DIR/scripts/pipeline-state.sh" refinement-round "$PROJECT_DIR"
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" refinement-round "$PROJECT_DIR"
 ```
 
 ### Stage 7: DUAL-FORMAT POLISH
@@ -386,8 +386,8 @@ bash "$SKILL_DIR/scripts/pipeline-state.sh" refinement-round "$PROJECT_DIR"
 Dispatch 2 parallel format agents:
 
 ```bash
-PROMPT_INT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts internal)
-PROMPT_EXT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts external)
+PROMPT_INT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts internal)
+PROMPT_EXT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts external)
 ```
 
 Launch in parallel:
@@ -407,7 +407,7 @@ After generating the internal/external versions, ask the user which publishing p
 
 ```bash
 # List available platforms:
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" list-platforms
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" list-platforms
 ```
 
 Available platforms: `medium`, `devto`, `hashnode`, `wechat`, `juejin`
@@ -416,11 +416,11 @@ Ask: "Which platforms should I format for? (medium, dev.to, Hashnode, WeChat公�
 
 For each chosen platform, build and dispatch in parallel:
 ```bash
-PROMPT_MEDIUM=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts medium)
-PROMPT_DEVTO=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts devto)
-PROMPT_HASHNODE=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts hashnode)
-PROMPT_WECHAT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts wechat)
-PROMPT_JUEJIN=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts juejin)
+PROMPT_MEDIUM=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts medium)
+PROMPT_DEVTO=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts devto)
+PROMPT_HASHNODE=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts hashnode)
+PROMPT_WECHAT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts wechat)
+PROMPT_JUEJIN=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-format-prompts juejin)
 ```
 
 Launch selected adapters via Agent tool in a SINGLE message (parallel execution):
@@ -444,7 +444,7 @@ Platform output files:
 After formatting, dispatch the social package agent with author context:
 
 ```bash
-SOCIAL_PROMPT=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-social-prompt)
+SOCIAL_PROMPT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-social-prompt)
 ```
 
 Launch via Agent tool:
@@ -461,7 +461,7 @@ The agent writes `.essay-state/social-package.json` with Twitter thread, LinkedI
 For each chosen platform, show step-by-step publishing instructions with SEO tips:
 
 ```bash
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" publishing-guide <platform>
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" publishing-guide <platform>
 ```
 
 Platforms: `medium`, `devto`, `hashnode`, `wechat`, `juejin`. Present the guide to the user alongside the formatted output.
@@ -472,19 +472,19 @@ After all formatting is complete, assess influence potential and generate SEO da
 
 ```bash
 # Predict reach/impact (0-10 across novelty, SEO, social, audience, timing)
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-influence-score verbose
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-influence-score verbose
 
 # Generate OpenGraph, meta tags, JSON-LD, keyword density
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-seo-metadata verbose
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-seo-metadata verbose
 ```
 
 Run publish readiness check:
 ```bash
-bash "$SKILL_DIR/scripts/publish-check.sh" "$PROJECT_DIR"
+python3 "$SKILL_DIR/scripts/py/publish_check.py" "$PROJECT_DIR"
 ```
 
 ```bash
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 
 **Final checkpoint:** Present all versions, social package, quality score, influence score, SEO metadata, and publish readiness.
@@ -494,56 +494,56 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progre
 
 After user approves:
 ```bash
-bash "$SKILL_DIR/scripts/taste-memory.sh" update "$PROJECT_DIR"
-bash "$SKILL_DIR/scripts/pipeline-state.sh" complete "$PROJECT_DIR"
+python3 "$SKILL_DIR/scripts/py/taste_memory.py" update "$PROJECT_DIR"
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" complete "$PROJECT_DIR"
 ```
 
 Export the finished article in the user's preferred format:
 ```bash
 # Export all final articles as a bundle (tar.gz)
-bash "$SKILL_DIR/scripts/export.sh" "$PROJECT_DIR" bundle ./exports
+python3 "$SKILL_DIR/scripts/py/export.py" "$PROJECT_DIR" bundle ./exports
 
 # Or export as markdown, html, json, or archive to ~/.tech-essay-writer/articles/
-bash "$SKILL_DIR/scripts/export.sh" "$PROJECT_DIR" markdown ./output
-bash "$SKILL_DIR/scripts/export.sh" "$PROJECT_DIR" archive
+python3 "$SKILL_DIR/scripts/py/export.py" "$PROJECT_DIR" markdown ./output
+python3 "$SKILL_DIR/scripts/py/export.py" "$PROJECT_DIR" archive
 ```
 
 If the user edited the draft manually, learn from their changes:
 ```bash
-bash "$SKILL_DIR/scripts/taste-memory.sh" diff-learn "$PROJECT_DIR/.essay-state/draft-v1.md" "$PROJECT_DIR/.essay-state/draft-v1-edited.md"
+python3 "$SKILL_DIR/scripts/py/taste_memory.py" diff-learn "$PROJECT_DIR/.essay-state/draft-v1.md" "$PROJECT_DIR/.essay-state/draft-v1-edited.md"
 ```
 
 Record explicit user feedback with category tagging:
 ```bash
-bash "$SKILL_DIR/scripts/taste-memory.sh" feedback <category> "<text>"
+python3 "$SKILL_DIR/scripts/py/taste_memory.py" feedback <category> "<text>"
 # Categories: tone, structure, vocabulary, length, code_density, format
 ```
 
 ```bash
-bash "$SKILL_DIR/scripts/expertise-graph.sh" update "<topic>" "<tag1> <tag2>"
+python3 "$SKILL_DIR/scripts/py/expertise_graph.py" update "<topic>" "<tag1> <tag2>"
 ```
 
 Show publishing guides for chosen platforms:
 ```bash
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" publishing-guide <platform>
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" publishing-guide <platform>
 ```
 
 After publishing, register the article and record analytics:
 ```bash
-bash "$SKILL_DIR/scripts/cross-reference.sh" add "<title>" "<published_url>" "<tag1> <tag2>"
-bash "$SKILL_DIR/scripts/analytics-feedback.sh" record "$PROJECT_DIR" "<url>" "<platform>"
+python3 "$SKILL_DIR/scripts/py/cross_reference.py" add "<title>" "<published_url>" "<tag1> <tag2>"
+python3 "$SKILL_DIR/scripts/py/analytics_feedback.py" record "$PROJECT_DIR" "<url>" "<platform>"
 ```
 
 **Analytics feedback loop:** When the user shares performance data later, track it and feed insights back into taste memory:
 ```bash
 # Record metrics (views, shares, comments, etc.)
-bash "$SKILL_DIR/scripts/analytics-feedback.sh" track "<article_id>" views=N shares=N
+python3 "$SKILL_DIR/scripts/py/analytics_feedback.py" track "<article_id>" views=N shares=N
 
 # Feed performance insights into taste memory for future articles
-bash "$SKILL_DIR/scripts/analytics-feedback.sh" feed-taste
+python3 "$SKILL_DIR/scripts/py/analytics_feedback.py" feed-taste
 
 # Show performance trends and analytics summary
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" build-analytics-summary
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" build-analytics-summary
 ```
 Analytics insights are auto-injected into writer and reviewer prompts via `build-analytics-insights`.
 
@@ -551,10 +551,10 @@ Analytics insights are auto-injected into writer and reviewer prompts via `build
 
 Show all available scripts with descriptions:
 ```bash
-bash "$SKILL_DIR/scripts/help.sh"                  # List all 38 scripts
-bash "$SKILL_DIR/scripts/help.sh" <command>         # Detailed help for a script
-bash "$SKILL_DIR/scripts/version.sh"                # Show current version
-bash "$SKILL_DIR/scripts/version.sh" bump patch     # Bump version (major/minor/patch)
+python3 "$SKILL_DIR/scripts/py/help.py"                  # List all 38 scripts
+python3 "$SKILL_DIR/scripts/py/help.py" <command>         # Detailed help for a script
+python3 "$SKILL_DIR/scripts/py/version.py"                # Show current version
+python3 "$SKILL_DIR/scripts/py/version.py" bump patch     # Bump version (major/minor/patch)
 ```
 
 ## Dry-Run Mode
@@ -563,8 +563,8 @@ Simulate the complete pipeline without LLM agents — useful for testing infrast
 changes without burning API tokens:
 
 ```bash
-bash "$SKILL_DIR/scripts/dry-run.sh" "$PROJECT_DIR" "$SKILL_DIR"
-bash "$SKILL_DIR/scripts/dry-run.sh" "$PROJECT_DIR" "$SKILL_DIR" --chinese  # zh language mode
+python3 "$SKILL_DIR/scripts/py/dry_run.py" "$PROJECT_DIR" "$SKILL_DIR"
+python3 "$SKILL_DIR/scripts/py/dry_run.py" "$PROJECT_DIR" "$SKILL_DIR" --chinese  # zh language mode
 ```
 
 The dry-run creates mock data at each stage, exercises every script (pipeline-state,
@@ -579,35 +579,35 @@ validate that script changes haven't broken the pipeline infrastructure.
 For multi-article series:
 ```bash
 # Create a new series
-bash "$SKILL_DIR/scripts/series-manager.sh" create "<series_name>" "<description>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" create "<series_name>" "<description>"
 
 # List all series
-bash "$SKILL_DIR/scripts/series-manager.sh" list
+python3 "$SKILL_DIR/scripts/py/series_manager.py" list
 
 # Show series details
-bash "$SKILL_DIR/scripts/series-manager.sh" show "<series_id>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" show "<series_id>"
 
 # Add current article to a series
-bash "$SKILL_DIR/scripts/series-manager.sh" add "<series_id>" "<article_id>" "<title>"
-bash "$SKILL_DIR/scripts/pipeline-state.sh" set-field "$PROJECT_DIR" series_id "<series_id>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" add "<series_id>" "<article_id>" "<title>"
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" set-field "$PROJECT_DIR" series_id "<series_id>"
 
 # Set the narrative arc
-bash "$SKILL_DIR/scripts/series-manager.sh" set-arc "<series_id>" "<arc_description>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" set-arc "<series_id>" "<arc_description>"
 
 # Set article summary within series
-bash "$SKILL_DIR/scripts/series-manager.sh" set-summary "<series_id>" "<article_id>" "<summary>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" set-summary "<series_id>" "<article_id>" "<summary>"
 
 # Get next position in the series
-bash "$SKILL_DIR/scripts/series-manager.sh" next-position "<series_id>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" next-position "<series_id>"
 
 # Reorder an article within the series
-bash "$SKILL_DIR/scripts/series-manager.sh" reorder "<series_id>" "<article_id>" "<new_position>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" reorder "<series_id>" "<article_id>" "<new_position>"
 
 # Search series by keyword
-bash "$SKILL_DIR/scripts/series-manager.sh" search "<query>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" search "<query>"
 
 # Get series context JSON for prompt injection
-bash "$SKILL_DIR/scripts/series-manager.sh" context "<series_id>"
+python3 "$SKILL_DIR/scripts/py/series_manager.py" context "<series_id>"
 
 # Series context is auto-injected into outline, writer, and formatter prompts
 ```
@@ -616,10 +616,10 @@ bash "$SKILL_DIR/scripts/series-manager.sh" context "<series_id>"
 
 User preferences stored at `~/.tech-essay-writer/config.json`:
 ```bash
-bash "$SKILL_DIR/scripts/config.sh" init            # Initialize defaults
-bash "$SKILL_DIR/scripts/config.sh" set language zh  # Set language preference
-bash "$SKILL_DIR/scripts/config.sh" add-platform medium  # Add default platform
-bash "$SKILL_DIR/scripts/config.sh" read             # Show all config
+python3 "$SKILL_DIR/scripts/py/config.py" init            # Initialize defaults
+python3 "$SKILL_DIR/scripts/py/config.py" set language zh  # Set language preference
+python3 "$SKILL_DIR/scripts/py/config.py" add-platform medium  # Add default platform
+python3 "$SKILL_DIR/scripts/py/config.py" read             # Show all config
 ```
 
 Config values auto-apply to new pipelines (language, max refinement rounds, default platforms).
@@ -628,16 +628,16 @@ Config values auto-apply to new pipelines (language, max refinement rounds, defa
 
 If invoked with "resume":
 ```bash
-STAGE=$(bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" resume)
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" show-progress
+STAGE=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" resume)
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" show-progress
 ```
 The `resume` command detects the current pipeline state, reports the stage and what's completed, and tells you what to do next. Show progress, then jump to that stage's execution block above.
 
-## Orchestrate.sh Command Reference
+## orchestrate.py Command Reference
 
-All orchestrate.sh commands follow the pattern:
+All orchestrate.py commands follow the pattern:
 ```bash
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" <command> [args...]
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" <command> [args...]
 ```
 
 | Command | Description |
@@ -683,16 +683,16 @@ bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" <command> [
 - Code validation fails → fix code blocks before advancing to review
 - Pipeline interrupted → use checkpoint system to recover:
 
-**Checkpoint system:** State is saved automatically at every stage transition via `pipeline-state.sh`.
+**Checkpoint system:** State is saved automatically at every stage transition via `pipeline_state.py`.
 ```bash
 # List all saved checkpoints
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" list-checkpoints
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" list-checkpoints
 
 # Rollback to a specific checkpoint
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" rollback <checkpoint_id>
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" rollback <checkpoint_id>
 
 # Retry a failed stage from scratch
-bash "$SKILL_DIR/scripts/orchestrate.sh" "$PROJECT_DIR" "$SKILL_DIR" retry-stage <stage>
+python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$PROJECT_DIR" "$SKILL_DIR" retry-stage <stage>
 ```
 
 ## Boundaries

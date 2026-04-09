@@ -63,9 +63,9 @@ class TestFreshInstall:
         link = os.path.join(fake_home, ".claude", "skills", "tech-essay-writer", "SKILL.md")
         assert os.path.islink(link)
 
-    def test_scripts_is_symlink(self, run_script, fake_home):
+    def test_scripts_py_is_symlink(self, run_script, fake_home):
         run_script("install")
-        link = os.path.join(fake_home, ".claude", "skills", "tech-essay-writer", "scripts")
+        link = os.path.join(fake_home, ".claude", "skills", "tech-essay-writer", "scripts", "py")
         assert os.path.islink(link)
 
     def test_prompts_is_symlink(self, run_script, fake_home):
@@ -83,10 +83,10 @@ class TestFreshInstall:
         link = os.path.join(fake_home, ".claude", "skills", "tech-essay-writer", "SKILL.md")
         assert os.readlink(link) == os.path.join(PROJECT_ROOT, "SKILL.md")
 
-    def test_scripts_points_to_project(self, run_script, fake_home):
+    def test_scripts_py_points_to_project(self, run_script, fake_home):
         run_script("install")
-        link = os.path.join(fake_home, ".claude", "skills", "tech-essay-writer", "scripts")
-        assert os.readlink(link) == os.path.join(PROJECT_ROOT, "scripts")
+        link = os.path.join(fake_home, ".claude", "skills", "tech-essay-writer", "scripts", "py")
+        assert os.readlink(link) == os.path.join(PROJECT_ROOT, "scripts", "py")
 
     def test_prompts_points_to_project(self, run_script, fake_home):
         run_script("install")
