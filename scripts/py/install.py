@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Install/uninstall tech-essay-writer skill into ~/.claude/skills/.
+Usage: install.py [--uninstall]
+"""
+
+import os
+import shutil
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(os.path.dirname(SCRIPT_DIR))  # scripts/py/../../
+SKILL_DIR = os.path.join(os.path.expanduser("~"), ".claude", "skills", "tech-essay-writer")
+
+COMPONENTS = ["SKILL.md", "scripts", "prompts", "templates"]
+
+
+def usage():
+    print("""Usage: install.py [--uninstall]
+
+Install:   install.py
+Uninstall: install.py --uninstall""")
+
+
+def do_install():
+    # Remove existing whole-directory symlink if present
+    if os.path.islink(SKILL_DIR):
+        print(f"Removing existing symlink: {SKILL_DIR}")
+        os.unlink(SKILL_DIR)
+
+    # Ensure parent directory exists and create skill directory
+    os.makedirs(os.path.dirname(SKILL_DIR), exist_ok=True)
+    os.makedirs(SKILL_DIR, exist_ok=True)
+
+    # Symlink each component
+    for component in COMPONENTS:
+        target = os.path.join(PROJECT_DIR, component)
+        link = os.path.join(SKILL_DIR, component)
+
+        if not os.path.exists(target):
+            print(f"Warning: {target} does not exist, skipping")
+            continue
+
+        # Remove stale symlink or existing file/directory at the link path
+        if os.path.islink(link):
+            os.unlink(link)
+        elif os.path.exists(link):
+            print(f"Warning: {link} exists and is not a symlink, replacing")
+            if os.path.isdir(link):
+                shutil.rmtree(link)
+            else:
+                os.unlink(link)
+
+        os.symlink(target, link)
+        print(f"Linked: {link} -> {target}")
+
+    print(f"Installed tech-essay-writer skill to {SKILL_DIR}")
+    return 0
+
+
+def do_uninstall():
+    if not os.path.isdir(SKILL_DIR) and not os.path.islink(SKILL_DIR):
+        print(f"Nothing to uninstall: {SKILL_DIR} does not exist")
+        return 0
+
+    # If it's a whole-directory symlink, just remove it
+    if os.path.islink(SKILL_DIR):
+        os.unlink(SKILL_DIR)
+        print(f"Removed symlink: {SKILL_DIR}")
+        return 0
+
+    # Remove individual component symlinks
+    for component in COMPONENTS:
+        link = os.path.join(SKILL_DIR, component)
+        if os.path.islink(link):
+            os.unlink(link)
+            print(f"Removed: {link}")
+
+    # Remove the directory if empty
+    if os.path.isdir(SKILL_DIR):
+        try:
+            os.rmdir(SKILL_DIR)
+            print(f"Removed directory: {SKILL_DIR}")
+        except OSError:
+            print(f"Warning: {SKILL_DIR} not empty, not removed")
+
+    print("Uninstalled tech-essay-writer skill")
+    return 0
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+
+    dispatch = {
+        "--uninstall": lambda: do_uninstall(),
+        "--help": lambda: (usage(), 0)[1],
+        "-h": lambda: (usage(), 0)[1],
+        "": lambda: do_install(),
+    }
+
+    if cmd in dispatch:
+        result = dispatch[cmd]()
+        sys.exit(result or 0)
+    else:
+        print(f"Unknown option: {cmd}", file=sys.stderr)
+        usage()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
