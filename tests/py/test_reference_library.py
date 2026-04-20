@@ -254,6 +254,120 @@ class TestRemove:
 # ─── path ─────────────────────────────────────────────────────────────────
 
 
+class TestFormatForPrompt:
+    def test_empty_project_returns_empty_string(self, lib):
+        rl, _, _, _ = lib
+        # blog project exists but has no refs
+        assert rl.format_for_prompt("blog") == ""
+
+    def test_missing_project_returns_empty_string(self, lib):
+        rl, _, _, _ = lib
+        assert rl.format_for_prompt("ghost") == ""
+
+    def test_malformed_slug_returns_empty_string(self, lib):
+        rl, _, _, _ = lib
+        # Graceful — callers inject this unconditionally.
+        assert rl.format_for_prompt("../escape") == ""
+
+    def test_single_ref_renders_expected_block(self, lib):
+        rl, _, _, _ = lib
+        rl.add_reference(
+            "blog", "https://arxiv.org/abs/1706.03762",
+            title="Attention Is All You Need",
+            kind="paper",
+            tags=["transformers", "llm"],
+        )
+        out = rl.format_for_prompt("blog")
+        assert "## Reference Library (project: `blog`)" in out
+        assert "1 reference(s)" in out
+        assert "`ref-001`" in out
+        assert "Attention Is All You Need" in out
+        assert "https://arxiv.org/abs/1706.03762" in out
+        # Tags sorted alphabetically by add_reference
+        assert "Tags: llm, transformers" in out
+        # No "Notes:" because parsed_at is empty (Phase 1 placeholder)
+        assert "Notes:" not in out
+
+    def test_multiple_refs(self, lib):
+        rl, _, _, _ = lib
+        rl.add_reference("blog", "https://one", title="One")
+        rl.add_reference("blog", "https://two", title="Two")
+        rl.add_reference("blog", "https://three", title="Three")
+        out = rl.format_for_prompt("blog")
+        assert "3 reference(s)" in out
+        assert "`ref-001`" in out
+        assert "`ref-002`" in out
+        assert "`ref-003`" in out
+        # Headers kept in index order (matches add order)
+        assert out.index("`ref-001`") < out.index("`ref-002`") < out.index("`ref-003`")
+
+    def test_notes_shown_when_parsed(self, lib, tmp_path):
+        """When a parser populates parsed_at + key_points, include Notes line."""
+        rl, _, skill_root, _ = lib
+        rl.add_reference("blog", "https://one", title="Paper 1")
+        # Simulate a parser populating the sidecar.
+        from pathlib import Path as _P
+        import json as _j
+        meta_file = skill_root / "projects" / "blog" / "references" / "ref-001.json"
+        meta = _j.loads(meta_file.read_text())
+        meta["parsed_at"] = "2026-01-01T00:00:00Z"
+        meta["key_points"] = "Self-attention beats recurrence for long contexts."
+        meta_file.write_text(_j.dumps(meta))
+        out = rl.format_for_prompt("blog")
+        assert "Notes: Self-attention beats recurrence" in out
+
+    def test_no_tags_renders_underscore_none(self, lib):
+        rl, _, _, _ = lib
+        rl.add_reference("blog", "https://one", title="No tags here")
+        out = rl.format_for_prompt("blog")
+        assert "Tags: _none_" in out
+
+    def test_cli_format_command(self, run_cli):
+        # Use the run_cli fixture's skill/user-data dirs
+        self._create_project(run_cli, "blog")
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "reference_library.py"),
+                "add", "blog", "https://x", "--title", "T", "--tag", "a,b",
+            ],
+            env={
+                **os.environ,
+                "TEW_SKILL_ROOT": str(run_cli.skill_root),
+                "TEW_USER_DATA_DIR": str(run_cli.user_data),
+                "PYTHONPATH": str(SCRIPTS_DIR),
+            },
+            check=True,
+            capture_output=True,
+        )
+        r = run_cli("format", "blog")
+        assert "## Reference Library" in r.stdout
+        assert "`ref-001` — T" in r.stdout
+
+    def test_cli_format_missing_project_is_empty(self, run_cli):
+        r = run_cli("format", "ghost")
+        assert r.stdout == ""
+
+    # Hoist the helper from TestCLI so we can call it here.
+    def _create_project(self, run_cli, slug):
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "project_manager.py"),
+                "create",
+                slug,
+            ],
+            env={
+                **os.environ,
+                "TEW_SKILL_ROOT": str(run_cli.skill_root),
+                "TEW_USER_DATA_DIR": str(run_cli.user_data),
+                "PYTHONPATH": str(SCRIPTS_DIR),
+            },
+            check=True,
+            capture_output=True,
+        )
+
+
 class TestPath:
     def test_path_md(self, lib):
         rl, _, skill_root, _ = lib

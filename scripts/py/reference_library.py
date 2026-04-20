@@ -19,6 +19,7 @@ Commands:
   untag <project> <ref-id> <tag>  Remove a tag
   remove <project> <ref-id>       Delete a reference (card, sidecar, index entry)
   path <project> <ref-id> [md|json] Print the on-disk path for a ref
+  format <project>                Render refs as prompt-ready markdown block
 
 Kinds: url, file, note, paper, docs, repo. Auto-detection picks url/file/note.
 Explicit kinds (paper/docs/repo) unlock per-type parsing in Phase 3.
@@ -266,6 +267,64 @@ def ref_path(project_slug: str, ref_id: str, kind: str = "md") -> Path:
     raise ValueError("path kind must be 'md' or 'json'")
 
 
+def format_for_prompt(project_slug: str) -> str:
+    """Render the Reference Library as a markdown block for prompt injection.
+
+    Returns "" (not a header-only block) when:
+    - the project doesn't exist yet (graceful — pipelines predating the
+      projects feature won't crash)
+    - the project has no references (no point adding tokens to the prompt)
+
+    The block is intentionally compact. Each ref gets id/title/kind/source/tags
+    on structured lines. A 'Notes:' line is only emitted when parsed_at is set
+    (i.e. Phase 3 parser populated the card beyond placeholder text) — we
+    don't want to leak the "not yet parsed" boilerplate into agent prompts.
+    """
+    try:
+        pm.validate_slug(project_slug)
+    except ValueError:
+        return ""
+    if not pm.project_exists(project_slug):
+        return ""
+
+    idx = _read_index(project_slug)
+    refs = idx.get("refs", [])
+    if not refs:
+        return ""
+
+    lines = [
+        "",
+        f"## Reference Library (project: `{project_slug}`)",
+        "",
+        f"The user has curated {len(refs)} reference(s) for this project. "
+        "Cite or draw on them when relevant — they are vetted inputs, not "
+        "discovered material. Reference them by `id` when useful.",
+        "",
+    ]
+    for entry in refs:
+        rid = entry.get("id", "?")
+        title = entry.get("title", "") or entry.get("source", "")
+        kind = entry.get("kind", "note")
+        source = entry.get("source", "")
+        tags = entry.get("tags", []) or []
+        tag_line = ", ".join(tags) if tags else "_none_"
+        lines.append(f"### `{rid}` — {title}")
+        lines.append(f"- Kind: `{kind}`")
+        if source:
+            lines.append(f"- Source: {source}")
+        lines.append(f"- Tags: {tag_line}")
+
+        # Only expose sidecar notes if a parser has populated them.
+        meta = read_json_file(str(_meta_path(project_slug, rid)))
+        if isinstance(meta, dict) and meta.get("parsed_at"):
+            notes = (meta.get("key_points") or meta.get("summary") or "").strip()
+            if notes:
+                lines.append(f"- Notes: {notes}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
 # ─── CLI ──────────────────────────────────────────────────────────────────
 
 
@@ -350,6 +409,14 @@ def _cmd_path(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_format(args: argparse.Namespace) -> int:
+    # format never raises — empty output when project missing or empty,
+    # so callers (orchestrate.py) can inject the result unconditionally.
+    block = format_for_prompt(args.project)
+    sys.stdout.write(block)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="reference_library.py",
@@ -396,6 +463,14 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("ref_id")
     pa.add_argument("kind", nargs="?", default="md", choices=["md", "json"])
     pa.set_defaults(func=_cmd_path)
+
+    fm = sub.add_parser(
+        "format",
+        help="Render the reference library as a prompt-ready markdown block "
+        "(empty when project missing or has no refs).",
+    )
+    fm.add_argument("project")
+    fm.set_defaults(func=_cmd_format)
 
     return p
 

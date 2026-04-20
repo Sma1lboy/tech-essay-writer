@@ -18,7 +18,12 @@ def usage():
     print("""Usage: pipeline-state.py <command> <project_dir> [args...]
 
 Commands:
-  init <project_dir> <topic> [--series <id>]  Initialize new article pipeline
+  init <project_dir> <topic> [--series <id>] [--project <slug>]
+                                       Initialize new article pipeline. The
+                                       --project flag binds the article to a
+                                       workspace Project (see project_manager.py);
+                                       if omitted, resolve_project() picks
+                                       active-project or auto-creates 'default'.
   set-stage <project_dir> <stage>      Update current stage
   get-stage <project_dir>              Get current stage
   read <project_dir>                   Read full pipeline state
@@ -52,23 +57,46 @@ def write_state(project, data):
     atomic_json_write(sf, data)
 
 
+def _resolve_project_slug(requested: str) -> str:
+    """Resolve a workspace Project slug, falling back to active/default.
+
+    Returns "" when the projects feature isn't reachable (import failure,
+    filesystem quirk) — the pipeline predates projects and must still work,
+    so we degrade silently to "no project association".
+    """
+    try:
+        import project_manager as pm
+        return pm.resolve_project(requested)
+    except Exception:
+        return ""
+
+
 def cmd_init(project, args):
     if not project:
         print("ERROR: project_dir is required for init", file=sys.stderr)
         return 1
 
-    # Parse args: topic and optional --series <series_id>
+    # Parse args: topic, --series <id>, --project <slug>
     topic = ""
     series_id = ""
+    project_slug = ""
     i = 0
     while i < len(args):
         if args[i] == "--series":
             series_id = args[i + 1] if i + 1 < len(args) else ""
             i += 2
+        elif args[i] == "--project":
+            project_slug = args[i + 1] if i + 1 < len(args) else ""
+            i += 2
         else:
             if not topic:
                 topic = args[i]
             i += 1
+
+    # Resolve workspace project: explicit --project > active-project > default.
+    # Failures are non-fatal — existing articles without a project association
+    # continue to work (project field stays empty string).
+    project_slug = _resolve_project_slug(project_slug)
 
     os.makedirs(os.path.join(project, STATE_DIR), exist_ok=True)
     now = timestamp_now()
@@ -88,6 +116,7 @@ def cmd_init(project, args):
         "created_at": now,
         "updated_at": now,
         "language": config_language,
+        "project": project_slug,
         "materials_count": 0,
         "outline_variant": None,
         "draft_version": 0,
@@ -102,7 +131,10 @@ def cmd_init(project, args):
         state["series_id"] = series_id
 
     write_state(project, state)
-    print(f"Pipeline initialized for: {topic}")
+    msg = f"Pipeline initialized for: {topic}"
+    if project_slug:
+        msg += f" (project: {project_slug})"
+    print(msg)
     return 0
 
 

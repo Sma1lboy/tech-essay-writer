@@ -70,7 +70,24 @@ agents for each stage, evaluate their output, and advance the pipeline.
 
 ### Stage 1: INTAKE
 
-Collect the user's raw materials. First, auto-detect input types:
+**First, initialize the pipeline state** (binds the article to a workspace
+Project so Reference Library content gets injected into later prompts):
+
+```bash
+# --project is optional. If omitted, resolve_project() uses the active-project
+# pointer at ~/.tech-essay-writer/active-project.txt, or auto-creates 'default'.
+# Users who never touched project_manager still get 'default' behind the scenes.
+python3 "$SKILL_DIR/scripts/py/pipeline_state.py" init "$PROJECT_DIR" "<topic>"
+# Or bind explicitly:
+# python3 "$SKILL_DIR/scripts/py/pipeline_state.py" init "$PROJECT_DIR" "<topic>" --project "<slug>"
+```
+
+If the user has curated references in the active project (via
+`scripts/py/reference_library.py add ...`), they will be automatically
+injected into the research, outline, and writer prompts later in the
+pipeline — no extra step required.
+
+Then auto-detect input types:
 ```bash
 python3 "$SKILL_DIR/scripts/py/detect_input.py" "<user's input text>"
 ```

@@ -37,7 +37,7 @@ def fake_home(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def run_script():
+def run_script(tmp_path):
     """Helper to invoke a Python script in scripts/py/ via subprocess.
 
     Usage:
@@ -45,7 +45,17 @@ def run_script():
 
     Calls: python3 scripts/py/pipeline_state.py init /tmp/proj "My Topic"
     Returns: subprocess.CompletedProcess with stdout/stderr as strings.
+
+    Each invocation runs with TEW_SKILL_ROOT + TEW_USER_DATA_DIR pointed at
+    a per-test sandbox. This keeps pipeline_state.init's project auto-resolve
+    (which would otherwise create ~/.tech-essay-writer/active-project.txt and
+    a real default project under the source tree) from leaking across tests.
     """
+    sandbox_skill = tmp_path / "tew-skill"
+    sandbox_user = tmp_path / "tew-user"
+    sandbox_skill.mkdir(parents=True, exist_ok=True)
+    sandbox_user.mkdir(parents=True, exist_ok=True)
+
     def _run(script_name, *args, **kwargs):
         cmd = [
             "python3",
@@ -54,6 +64,8 @@ def run_script():
         ]
         env = os.environ.copy()
         env["PYTHONPATH"] = str(PROJECT_ROOT / "scripts" / "py")
+        env["TEW_SKILL_ROOT"] = str(sandbox_skill)
+        env["TEW_USER_DATA_DIR"] = str(sandbox_user)
         # Allow callers to override env vars
         if "env_override" in kwargs:
             env.update(kwargs.pop("env_override"))

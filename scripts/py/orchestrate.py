@@ -90,6 +90,43 @@ def cached_pipeline_topic():
     return _cache["pipeline_topic"]
 
 
+def cached_project_slug():
+    """Read the workspace Project slug from pipeline-state.json.
+
+    Empty string when absent — articles initialized before the projects
+    feature landed don't have this field, so callers must handle "".
+    """
+    if "project_slug" not in _cache:
+        slug = ""
+        ps_path = os.path.join(state_dir, "pipeline-state.json")
+        if os.path.isfile(ps_path):
+            data = read_json_file(ps_path)
+            slug = data.get("project", "") or ""
+        _cache["project_slug"] = slug
+    return _cache["project_slug"]
+
+
+def cached_references_block():
+    """Reference Library markdown block for prompt injection.
+
+    Returns "" when:
+    - The article has no project association (pre-projects pipeline state)
+    - reference_library fails to import (never expected, but don't crash prompts)
+    - The project has no references
+    """
+    if "references_block" not in _cache:
+        block = ""
+        slug = cached_project_slug()
+        if slug:
+            try:
+                import reference_library as rl
+                block = rl.format_for_prompt(slug)
+            except Exception:
+                block = ""
+        _cache["references_block"] = block
+    return _cache["references_block"]
+
+
 # ─── Core helpers ────────────────────────────────────────────────────────────
 
 def read_prompt(template):
@@ -298,6 +335,7 @@ def cmd_build_intake_summary():
 def cmd_build_research_prompt():
     materials = cached_materials() or "{}"
     taste = cached_taste_memory() or "{}"
+    refs_block = cached_references_block()
 
     prompt = read_prompt("researcher.md")
     lang_dir = build_language_directive()
@@ -315,14 +353,15 @@ def cmd_build_research_prompt():
 ```json
 {taste}
 ```
-{lang_dir}
+{refs_block}{lang_dir}
 
 ## Instructions
 
 1. Analyze all provided materials thoroughly
-2. Use WebSearch to check the competitive landscape for this topic
-3. Write your complete analysis to `.essay-state/research-synthesis.json`
-4. Be specific — no generic observations. Ground everything in the actual materials.""")
+2. If the Reference Library above is non-empty, treat those references as vetted inputs — read and cross-check them before inventing new web searches
+3. Use WebSearch to check the competitive landscape for this topic (on top of, not instead of, the library)
+4. Write your complete analysis to `.essay-state/research-synthesis.json`
+5. Be specific — no generic observations. Ground everything in the actual materials and references.""")
     return 0
 
 
@@ -348,6 +387,7 @@ def cmd_build_outline_prompts(args):
     prompt = read_prompt("outliner.md")
     series_ctx = get_series_context_section()
     lang_dir = build_language_directive()
+    refs_block = cached_references_block()
 
     print(f"""{prompt}
 
@@ -376,7 +416,7 @@ Generate outline variant {variant} as described in the variant styles above.
 ```json
 {taste}
 ```
-{series_ctx}
+{refs_block}{series_ctx}
 {lang_dir}
 
 ## Instructions
@@ -475,6 +515,7 @@ def cmd_build_writer_prompt(args):
     research = cached_research() or "{}"
     materials = cached_materials() or "{}"
     taste = cached_taste_memory() or "{}"
+    refs_block = cached_references_block()
 
     prompt = read_prompt("writer.md")
     series_ctx = get_series_context_section()
@@ -505,7 +546,7 @@ def cmd_build_writer_prompt(args):
 ```json
 {taste}
 ```
-{series_ctx}
+{refs_block}{series_ctx}
 {lang_dir}
 
 ## Instructions
