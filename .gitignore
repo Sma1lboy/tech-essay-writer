@@ -2,6 +2,11 @@
 .essay-state/
 .autonomous/
 
+# User projects & references (see docs/PROJECTS.md). The README is committed;
+# everything else under projects/ is local user data.
+projects/*
+!projects/README.md
+
 # OS
 .DS_Store
 
