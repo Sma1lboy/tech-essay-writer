@@ -302,7 +302,9 @@ class TestFormatForPrompt:
         assert out.index("`ref-001`") < out.index("`ref-002`") < out.index("`ref-003`")
 
     def test_notes_shown_when_parsed(self, lib, tmp_path):
-        """When a parser populates parsed_at + key_points, include Notes line."""
+        """When the Phase 3 summarizer populates parsed_at + key_points,
+        include a Notes line. `parsed_at` is the timestamp marker that
+        distinguishes a summarized sidecar from a placeholder."""
         rl, _, skill_root, _ = lib
         rl.add_reference("blog", "https://one", title="Paper 1")
         # Simulate a parser populating the sidecar.

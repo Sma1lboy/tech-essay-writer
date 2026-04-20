@@ -75,15 +75,54 @@ No changes to existing 977 `.essay-state` references.
 No SKILL.md pipeline changes.
 Everything is additive and invokable standalone.
 
-## Phase 2 (follow-up PR)
+## Phase 2 (shipped — commits `226a010`, `f16dd15`)
 
-- `resolve_state_dir(project_dir, project=None, article=None)` utility in `utils.py`
-- Migrate `pipeline_state.py` to use the resolver (legacy `.essay-state/` still supported)
-- Writer/research agents read from Reference Library when available
-- Migration tool for existing `.essay-state/` → `projects/migrated-<ts>/articles/<slug>/`
+- `pipeline_state.py init --project <slug>` binds the article to a workspace Project; falls back to `resolve_project()` (active → default) when the flag is omitted
+- `reference_library.format_for_prompt(slug)` renders the library as a compact markdown block
+- `orchestrate.py` injects that block into the research, outline, and writer prompts
+- SKILL.md Stage 1 explicitly calls `pipeline_state init` (previously state was lazy-created via `set-field`, silently bypassing the project binding)
 
-## Phase 3 (follow-up PR)
+Remaining Phase-2-shaped work (not yet done, queue for later):
+- `resolve_state_dir(project_dir, project=None, article=None)` utility + migrate the 977 `.essay-state/` references
+- Migration tool for existing `.essay-state/` → `projects/<slug>/articles/<slug>/`
 
-- Deep parsers (`parser-paper.md`, `parser-docs.md`, `parser-repo.md`) — dispatched as agents when user adds a reference, produce structured knowledge cards
-- Citation tracking: draft → which claims came from which references
-- fact-check reviewer cross-checks citations
+## Phase 3 — Relevance-driven summarizer (NOT per-kind parsers)
+
+**Design correction.** The earlier plan ("dispatch paper/docs/repo parsers by `kind`") is wrong. `kind` is the *source format*, but what writer / researcher / factcheck agents actually want from a reference is its **relevance to the current article** — the same question regardless of whether the source is a paper, docs, blog post, or repo.
+
+Splitting by source type creates:
+- **Arbitrary rules**: a paper introducing a library is also docs; a repo with a great README is mostly docs; forcing one `kind` per ref is a false dichotomy.
+- **Bureaucratic schemas**: N schemas to maintain, N test branches, N places for edge cases, without buying anything the consuming agent actually uses.
+- **Wrong axis**: consumers want "what claim does this source make that matters for my topic / thesis?" — that is not source-type-dependent.
+
+### Revised approach
+
+One unified **summarizer** agent (tentative name `summarize-reference.md`, not "parser"). Input: the reference's fetched/read content + the project topic + the current article's thesis when available. Output: a single structured schema, identical across all references.
+
+Tentative schema for the JSON sidecar under `references/<ref-id>.json`:
+
+```jsonc
+{
+  "claims": ["what this source argues / provides"],
+  "evidence": [
+    {"quote": "...", "where": "section 3.1 / line 42 / README intro"}
+  ],
+  "relevance": "why this matters for the current article (supporting, counter-example, benchmark, prior art, inspiration, ...)",
+  "caveats": ["limitations", "publication date staleness", "disputed claims"]
+}
+```
+
+The knowledge-card `<ref-id>.md` becomes a human-readable rendering of the same data.
+
+### What `kind` becomes
+
+Stays as display-only metadata — nothing dispatches on it. Users see `Kind: paper` in the prompt block for context, but the summarizer runs the same prompt whether `kind` is `paper`, `url`, `note`, or anything else. Auto-detection of `url` vs `file` vs `note` is still convenient for display; it no longer implies a different code path.
+
+### Citation tracking (unchanged goal, updated phrasing)
+
+- Writer output embeds citation anchors (e.g. `[ref-003]`) tying claims to library entries
+- fact-check reviewer cross-checks the anchors against the `claims` + `evidence` in the ref sidecar
+
+### Why delay implementation
+
+Phase 2 is reachable and useful right now: a user can curate refs, start writing, and the agent sees them — the refs just show up as `{title, source, tags}` rather than structured extractions. Phase 3 upgrades the *quality* of what the agent sees, not whether anything works. Before coding the summarizer, we want at least one real project's-worth of curated refs to pressure-test the schema against — otherwise we're designing in the abstract.

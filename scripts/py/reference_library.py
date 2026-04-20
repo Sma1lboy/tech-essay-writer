@@ -5,10 +5,13 @@ Stores references (URLs, files, notes) that a project accumulates over time.
 Each reference gets a human-readable knowledge card (markdown) and a JSON
 sidecar with structured metadata. An index.json tracks all refs for the project.
 
-Phase 1 (this file): CRUD only. Knowledge cards are placeholders.
-Phase 3 (later): per-type deep parsers (paper, docs, repo) produce rich cards.
-
-See docs/PROJECTS.md for layout.
+Phase 1: CRUD (this file).
+Phase 2 (done): Reference Library injected into research/outline/writer prompts
+via orchestrate.py (see scripts/py/orchestrate.py::cached_references_block).
+Phase 3 (future): ONE relevance-driven summarizer agent per reference —
+writes `claims / evidence / relevance / caveats` into the sidecar. There is
+NOT a parser-per-kind fan-out — `kind` is display-only metadata, not a
+dispatch axis. See docs/PROJECTS.md §"Phase 3 — Relevance-driven summarizer".
 
 Commands:
   add <project> <source> [--title T] [--kind K] [--tag t1,t2]
@@ -22,7 +25,7 @@ Commands:
   format <project>                Render refs as prompt-ready markdown block
 
 Kinds: url, file, note, paper, docs, repo. Auto-detection picks url/file/note.
-Explicit kinds (paper/docs/repo) unlock per-type parsing in Phase 3.
+Kind is stored + displayed but does NOT drive per-type code paths anywhere.
 """
 from __future__ import annotations
 
@@ -114,7 +117,13 @@ def _detect_kind(source: str) -> str:
 
 
 def _placeholder_card(ref_id: str, title: str, kind: str, source: str, tags: list[str]) -> str:
-    """Phase 1 placeholder card. Phase 3 replaces with per-kind parser output."""
+    """Placeholder card written at add-time.
+
+    Phase 3 replaces this with the output of the unified relevance-driven
+    summarizer — same agent for every `kind`, one structured schema
+    (claims / evidence / relevance / caveats). There is intentionally no
+    per-kind parser fan-out; `kind` is display-only metadata.
+    """
     tag_line = ", ".join(tags) if tags else "_none_"
     return (
         f"# {title}\n\n"
@@ -123,9 +132,10 @@ def _placeholder_card(ref_id: str, title: str, kind: str, source: str, tags: lis
         f"- **Source:** {source}\n"
         f"- **Tags:** {tag_line}\n\n"
         "## Key points\n\n"
-        "_Not yet parsed. Phase 3 will dispatch a per-kind parser agent to "
-        "populate this section (abstract/findings for papers, API surface for "
-        "docs, entry points for repos, thesis/evidence for blog posts)._\n\n"
+        "_Not yet summarized. A single relevance-driven summarizer agent "
+        "will populate `claims / evidence / relevance / caveats` in the JSON "
+        "sidecar and re-render this section — identical schema regardless "
+        "of whether the source is a paper, docs, blog post, or repo._\n\n"
         "## Notes\n\n"
         "_User notes or excerpted quotes go here._\n"
     )
@@ -147,7 +157,7 @@ def add_reference(
         raise ValueError(f"invalid kind {kind!r}; must be one of {sorted(VALID_KINDS)}")
     tags = sorted(set(tags or []))
     if not title:
-        title = source  # will be refined by Phase 3 parsers
+        title = source  # may be refined by the Phase 3 summarizer
 
     ref_id = _next_ref_id(project_slug)
     now = timestamp_now()
@@ -277,8 +287,9 @@ def format_for_prompt(project_slug: str) -> str:
 
     The block is intentionally compact. Each ref gets id/title/kind/source/tags
     on structured lines. A 'Notes:' line is only emitted when parsed_at is set
-    (i.e. Phase 3 parser populated the card beyond placeholder text) — we
-    don't want to leak the "not yet parsed" boilerplate into agent prompts.
+    (i.e. the Phase 3 summarizer populated the sidecar beyond placeholder
+    text) — we don't want to leak the "not yet summarized" boilerplate into
+    agent prompts.
     """
     try:
         pm.validate_slug(project_slug)
