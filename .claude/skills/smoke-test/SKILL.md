@@ -21,8 +21,9 @@ hangs together" check that exercises real subprocess calls and real file I/O.
 3. **Dry-run pipeline**: `dry_run.py` completes all 7 stages without failures
 4. **Project CRUD**: create → list → set-active → resolve → article-dir
 5. **Reference Library CRUD**: add → list → tag → show → remove
-6. **Isolation**: `TEW_SKILL_ROOT` + `TEW_USER_DATA_DIR` overrides actually redirect I/O (not leaking into the real source tree or `~/.tech-essay-writer/`)
-7. **Cleanup**: sandbox removed, no stray processes
+6. **Reference injection**: init pipeline with `--project <slug>`, build the research prompt, verify the `## Reference Library` block actually lands in the output (this is what makes Phase 2 "usable" — if it fails, users won't see their refs in prompts)
+7. **Isolation**: `TEW_SKILL_ROOT` + `TEW_USER_DATA_DIR` overrides actually redirect I/O (not leaking into the real source tree or `~/.tech-essay-writer/`)
+8. **Cleanup**: sandbox removed, no stray processes
 
 ## Run
 
@@ -146,43 +147,74 @@ bash -c '
 ' _ "$SKILL_DIR/scripts/py/reference_library.py"
 ```
 
-### Step 6: Isolation check — env overrides landed
+### Step 6: Reference injection end-to-end
+
+Reuses `smoke-proj` from Step 4 (it has one ref left after Step 5's remove).
+Inits a throwaway article directory bound to the project, builds the
+research prompt, and asserts the injected block + ref data appear in stdout.
+
+```bash
+echo ""
+echo "Step 6: Reference injection end-to-end"
+ARTICLE_DIR="$SANDBOX/article"
+mkdir -p "$ARTICLE_DIR"
+bash -c '
+  set -e
+  SKILL_DIR=$1
+  ARTICLE_DIR=$2
+  python3 "$SKILL_DIR/scripts/py/pipeline_state.py" init "$ARTICLE_DIR" "Smoke topic" --project smoke-proj >/dev/null
+  # Seed empty materials + research so orchestrate has something to read.
+  mkdir -p "$ARTICLE_DIR/.essay-state"
+  echo "{}" > "$ARTICLE_DIR/.essay-state/materials.json"
+  echo "{}" > "$ARTICLE_DIR/.essay-state/research-synthesis.json"
+  PROMPT=$(python3 "$SKILL_DIR/scripts/py/orchestrate.py" "$ARTICLE_DIR" "$SKILL_DIR" build-research-prompt)
+  echo "$PROMPT" | grep -q "Reference Library (project: .smoke-proj." || { echo "STEP6=FAIL (header missing)"; exit 1; }
+  # ref-002 survived Step 5'\''s remove; ref-001 was deleted.
+  echo "$PROMPT" | grep -q "ref-002" || { echo "STEP6=FAIL (ref-002 not injected)"; exit 1; }
+  # Verify the state file stored the project binding.
+  PROJ=$(python3 -c "import json; print(json.load(open(\"$ARTICLE_DIR/.essay-state/pipeline-state.json\")).get(\"project\",\"\"))")
+  [ "$PROJ" = "smoke-proj" ] || { echo "STEP6=FAIL (state.project=$PROJ, expected smoke-proj)"; exit 1; }
+  echo "STEP6=PASS"
+' _ "$SKILL_DIR" "$ARTICLE_DIR"
+```
+
+### Step 7: Isolation check — env overrides landed
 
 Verify the env overrides actually redirected writes into the sandbox,
 not into the source repo or `~/.tech-essay-writer/`.
 
 ```bash
 echo ""
-echo "Step 6: Isolation check"
+echo "Step 7: Isolation check"
 PROJ_FILE="$FAKE_SKILL_ROOT/projects/smoke-proj/project.json"
 ACTIVE_FILE="$FAKE_USER_DATA/active-project.txt"
 # Source-repo projects/ should NOT contain 'smoke-proj' (only README.md + maybe committed projects).
 SRC_LEAK=$(ls "$SKILL_DIR/projects/" 2>/dev/null | grep -x smoke-proj | head -1)
 if [ -f "$PROJ_FILE" ] && [ -f "$ACTIVE_FILE" ] && [ -z "$SRC_LEAK" ]; then
-  echo "STEP6=PASS"
+  echo "STEP7=PASS"
 else
-  echo "STEP6=FAIL (proj_file=$([ -f $PROJ_FILE ] && echo ok || echo missing) active=$([ -f $ACTIVE_FILE ] && echo ok || echo missing) leak=$SRC_LEAK)"
+  echo "STEP7=FAIL (proj_file=$([ -f $PROJ_FILE ] && echo ok || echo missing) active=$([ -f $ACTIVE_FILE ] && echo ok || echo missing) leak=$SRC_LEAK)"
 fi
 ```
 
-### Step 7: Cleanup
+### Step 8: Cleanup
 
 ```bash
 echo ""
-echo "Step 7: Cleanup"
+echo "Step 8: Cleanup"
 cd /
 rm -rf "$SANDBOX" 2>/dev/null
 unset TEW_SKILL_ROOT TEW_USER_DATA_DIR PYTHONPATH
 if [ ! -d "$SANDBOX" ]; then
-  echo "STEP7=PASS"
+  echo "STEP8=PASS"
 else
-  echo "STEP7=FAIL (sandbox not removed)"
+  echo "STEP8=FAIL (sandbox not removed)"
 fi
 ```
 
 ## Report
 
-After all 7 steps finish, print a summary table counting PASS/FAIL. If every
+After all 8 steps finish, print a summary table counting PASS/FAIL. If every
 step passed, print `ALL PASS ✅`. If any failed, list the failing step numbers
 and their captured reasons.
 
@@ -201,7 +233,11 @@ one line per step, then the overall verdict.
 - If Step 3 (dry-run) fails, the pipeline itself is broken — report the
   `dry-run.log` tail and tell the user to run `pytest tests/py/test_e2e_dryrun.py -v`
   for detailed diagnostics.
-- If Step 6 (isolation) fails, **STOP and surface loudly**: state likely
+- If Step 6 (reference injection) fails, the user-visible value proposition
+  of Phase 2 is broken. Suggest running
+  `pytest tests/py/test_reference_injection.py -v` for detailed failure info —
+  the integration tests cover the same chain at unit-test granularity.
+- If Step 7 (isolation) fails, **STOP and surface loudly**: state likely
   leaked into the real source tree. Point at `$SKILL_DIR/projects/` and
   `~/.tech-essay-writer/active-project.txt` and ask the user to inspect
   before running any destructive cleanup.
